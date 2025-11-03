@@ -1,8 +1,8 @@
-
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:window_manager/window_manager.dart';
 import 'package:iptvca/core/constants/app_constants.dart';
 import 'package:iptvca/core/di/injection_container.dart';
 import 'package:iptvca/core/theme/app_theme.dart';
@@ -15,6 +15,7 @@ import 'package:iptvca/presentation/routes/app_router.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
+    await windowManager.ensureInitialized();
     MediaKit.ensureInitialized();
     await InjectionContainer.instance.init();
     runApp(const MyApp());

@@ -1,4 +1,5 @@
 import 'dart:developer' as developer;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -10,6 +11,7 @@ import 'package:iptvca/presentation/bloc/channel/channel_bloc.dart';
 import 'package:iptvca/presentation/bloc/channel/channel_event.dart';
 import 'package:iptvca/presentation/bloc/channel/channel_state.dart';
 import 'package:iptvca/domain/entities/channel.dart';
+import 'package:window_manager/window_manager.dart';
 
 class _ChannelSelectorDrawer extends StatelessWidget {
   const _ChannelSelectorDrawer({required this.onChannelSelected});
@@ -329,11 +331,17 @@ class _PlayerAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.currentChannel,
     required this.localIsFavorite,
     required this.onLocalFavoriteChanged,
+    required this.showAlwaysOnTopControl,
+    required this.isAlwaysOnTop,
+    required this.onToggleAlwaysOnTop,
   });
 
   final Channel currentChannel;
   final bool? localIsFavorite;
   final void Function(bool) onLocalFavoriteChanged;
+  final bool showAlwaysOnTopControl;
+  final bool isAlwaysOnTop;
+  final VoidCallback onToggleAlwaysOnTop;
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
@@ -393,6 +401,18 @@ class _PlayerAppBar extends StatelessWidget implements PreferredSizeWidget {
               ),
             ],
           ),
+          actions: [
+            if (showAlwaysOnTopControl)
+              IconButton(
+                tooltip: isAlwaysOnTop
+                    ? 'Отключить закрепление поверх всех окон'
+                    : 'Развернуть поверх всех окон',
+                icon: Icon(
+                  isAlwaysOnTop ? Icons.push_pin : Icons.push_pin_outlined,
+                ),
+                onPressed: onToggleAlwaysOnTop,
+              ),
+          ],
         );
       },
     );
@@ -407,6 +427,21 @@ class _PlayerPageState extends State<PlayerPage> {
   String? _errorMessage;
   bool _isInitializing = false;
   bool? _localIsFavorite;
+  late final bool _supportsWindowControls;
+  bool _isAlwaysOnTop = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _supportsWindowControls =
+        !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.windows ||
+            defaultTargetPlatform == TargetPlatform.macOS ||
+            defaultTargetPlatform == TargetPlatform.linux);
+    if (_supportsWindowControls) {
+      _syncAlwaysOnTopStatus();
+    }
+  }
 
   @override
   void didChangeDependencies() {
@@ -438,6 +473,45 @@ class _PlayerPageState extends State<PlayerPage> {
     _player?.dispose();
     _videoController = null;
     _player = null;
+  }
+
+  Future<void> _syncAlwaysOnTopStatus() async {
+    try {
+      final isOnTop = await windowManager.isAlwaysOnTop();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isAlwaysOnTop = isOnTop;
+      });
+    } catch (e, stackTrace) {
+      developer.log(
+        'Не удалось получить состояние always-on-top: $e',
+        name: 'PlayerPage',
+        error: e,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
+  Future<void> _toggleAlwaysOnTop() async {
+    final targetState = !_isAlwaysOnTop;
+    try {
+      await windowManager.setAlwaysOnTop(targetState);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isAlwaysOnTop = targetState;
+      });
+    } catch (e, stackTrace) {
+      developer.log(
+        'Не удалось изменить состояние always-on-top: $e',
+        name: 'PlayerPage',
+        error: e,
+        stackTrace: stackTrace,
+      );
+    }
   }
 
   Future<void> _initializePlayer(String url) async {
@@ -633,6 +707,9 @@ class _PlayerPageState extends State<PlayerPage> {
                     _localIsFavorite = newStatus;
                   });
                 },
+                showAlwaysOnTopControl: _supportsWindowControls,
+                isAlwaysOnTop: _isAlwaysOnTop,
+                onToggleAlwaysOnTop: _toggleAlwaysOnTop,
               )
             : AppBar(title: const Text('Плеер')),
         drawer: _ChannelSelectorDrawer(
