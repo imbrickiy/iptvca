@@ -1,9 +1,18 @@
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:iptvca/presentation/pages/settings_page.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
+  
+  void _showSettingsModal(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => const SettingsModal(),
+      barrierDismissible: true,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -11,9 +20,12 @@ class HomePage extends StatelessWidget {
       appBar: AppBar(
         title: const Text('IPTV'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () => context.push('/settings'),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: IconButton(
+              icon: const Icon(Icons.settings),
+              onPressed: () => _showSettingsModal(context),
+            ),
           ),
         ],
       ),

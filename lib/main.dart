@@ -1,9 +1,15 @@
 
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:iptvca/core/constants/app_constants.dart';
 import 'package:iptvca/core/di/injection_container.dart';
+import 'package:iptvca/core/theme/app_theme.dart';
+import 'package:iptvca/core/theme/theme_extension.dart';
+import 'package:iptvca/presentation/bloc/settings/settings_bloc.dart';
+import 'package:iptvca/presentation/bloc/settings/settings_event.dart';
+import 'package:iptvca/presentation/bloc/settings/settings_state.dart';
 import 'package:iptvca/presentation/routes/app_router.dart';
 
 void main() async {
@@ -52,124 +58,48 @@ void main() async {
   }
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
   @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  late final SettingsBloc _settingsBloc;
+
+  @override
+  void initState() {
+    super.initState();
+    _settingsBloc = InjectionContainer.instance.createSettingsBloc()
+      ..add(const LoadSettingsEvent());
+  }
+
+  @override
+  void dispose() {
+    _settingsBloc.close();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      title: AppConstants.appName,
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: const ColorScheme.light(
-          primary: Color(0xFF183e4b),
-          onPrimary: Color(0xFFeaeaea),
-          primaryContainer: Color(0xFF1b4552),
-          onPrimaryContainer: Color(0xFFeaeaea),
-          secondary: Color(0xFF8ba0a4),
-          onSecondary: Color(0xFFeaeaea),
-          secondaryContainer: Color(0xFF8ba0a4),
-          onSecondaryContainer: Color(0xFF183e4b),
-          tertiary: Color(0xFFd74a49),
-          onTertiary: Color(0xFFeaeaea),
-          error: Color(0xFFd74a49),
-          onError: Color(0xFFeaeaea),
-          errorContainer: Color(0xFFd74a49),
-          onErrorContainer: Color(0xFFeaeaea),
-          surface: Color(0xFFeaeaea),
-          onSurface: Color(0xFF183e4b),
-          surfaceContainerHighest: Color(0xFFeaeaea),
-          surfaceVariant: Color(0xFF8ba0a4),
-          onSurfaceVariant: Color(0xFF183e4b),
-          outline: Color(0xFF8ba0a4),
-          outlineVariant: Color(0xFF8ba0a4),
-          shadow: Color(0xFF183e4b),
-          scrim: Color(0xFF183e4b),
-          inverseSurface: Color(0xFF183e4b),
-          onInverseSurface: Color(0xFFeaeaea),
-          inversePrimary: Color(0xFF8ba0a4),
-          surfaceTint: Color(0xFF1b4552),
-        ),
-        useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFFeaeaea),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF183e4b),
-          foregroundColor: Color(0xFFeaeaea),
-          elevation: 0,
-        ),
-        cardTheme: CardThemeData(
-          color: const Color(0xFFeaeaea),
-          elevation: 2,
-          shadowColor: const Color(0xFF183e4b).withOpacity(0.2),
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF183e4b),
-            foregroundColor: const Color(0xFFeaeaea),
-            elevation: 2,
-          ),
-        ),
-        floatingActionButtonTheme: const FloatingActionButtonThemeData(
-          backgroundColor: Color(0xFFd74a49),
-          foregroundColor: Color(0xFFeaeaea),
-        ),
+    return BlocProvider.value(
+      value: _settingsBloc,
+      child: BlocBuilder<SettingsBloc, SettingsState>(
+        builder: (context, state) {
+          final themeMode = state is SettingsLoaded
+              ? state.settings.themeMode.toThemeMode()
+              : ThemeMode.system;
+          return MaterialApp.router(
+            title: AppConstants.appName,
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.lightTheme,
+            darkTheme: AppTheme.darkTheme,
+            themeMode: themeMode,
+            routerConfig: appRouter,
+          );
+        },
       ),
-      darkTheme: ThemeData(
-        colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF8ba0a4),
-          onPrimary: Color(0xFF183e4b),
-          primaryContainer: Color(0xFF1b4552),
-          onPrimaryContainer: Color(0xFFeaeaea),
-          secondary: Color(0xFF8ba0a4),
-          onSecondary: Color(0xFF183e4b),
-          secondaryContainer: Color(0xFF1b4552),
-          onSecondaryContainer: Color(0xFFeaeaea),
-          tertiary: Color(0xFFd74a49),
-          onTertiary: Color(0xFFeaeaea),
-          error: Color(0xFFd74a49),
-          onError: Color(0xFFeaeaea),
-          errorContainer: Color(0xFFd74a49),
-          onErrorContainer: Color(0xFFeaeaea),
-          surface: Color(0xFF183e4b),
-          onSurface: Color(0xFFeaeaea),
-          surfaceContainerHighest: Color(0xFF1b4552),
-          surfaceVariant: Color(0xFF1b4552),
-          onSurfaceVariant: Color(0xFF8ba0a4),
-          outline: Color(0xFF8ba0a4),
-          outlineVariant: Color(0xFF1b4552),
-          shadow: Color(0xFF000000),
-          scrim: Color(0xFF000000),
-          inverseSurface: Color(0xFFeaeaea),
-          onInverseSurface: Color(0xFF183e4b),
-          inversePrimary: Color(0xFF183e4b),
-          surfaceTint: Color(0xFF8ba0a4),
-        ),
-        useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFF183e4b),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF1b4552),
-          foregroundColor: Color(0xFFeaeaea),
-          elevation: 0,
-        ),
-        cardTheme: CardThemeData(
-          color: const Color(0xFF1b4552),
-          elevation: 2,
-          shadowColor: Colors.black.withOpacity(0.3),
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF1b4552),
-            foregroundColor: const Color(0xFFeaeaea),
-            elevation: 2,
-          ),
-        ),
-        floatingActionButtonTheme: const FloatingActionButtonThemeData(
-          backgroundColor: Color(0xFFd74a49),
-          foregroundColor: Color(0xFFeaeaea),
-        ),
-      ),
-      themeMode: ThemeMode.system,
-      routerConfig: appRouter,
     );
   }
 }

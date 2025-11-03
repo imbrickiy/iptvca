@@ -15,9 +15,13 @@ import 'package:iptvca/domain/usecases/get_all_channels.dart';
 import 'package:iptvca/domain/usecases/get_playlists.dart';
 import 'package:iptvca/domain/usecases/load_playlist_from_file.dart';
 import 'package:iptvca/domain/usecases/load_playlist_from_url.dart';
+import 'package:iptvca/domain/usecases/get_settings.dart';
+import 'package:iptvca/domain/usecases/save_settings.dart';
 import 'package:iptvca/domain/usecases/save_playlist.dart';
+import 'package:iptvca/data/repositories/settings_repository_impl.dart';
 import 'package:iptvca/presentation/bloc/channel/channel_bloc.dart';
 import 'package:iptvca/presentation/bloc/playlist/playlist_bloc.dart';
+import 'package:iptvca/presentation/bloc/settings/settings_bloc.dart';
 
 class InjectionContainer {
   static final InjectionContainer instance = InjectionContainer._();
@@ -76,6 +80,14 @@ class InjectionContainer {
     final repository = PlaylistRepositoryImpl(remoteDataSource, localDataSource);
 
     return ChannelBloc(GetAllChannels(repository), _storage!);
+  }
+
+  SettingsBloc createSettingsBloc() {
+    if (_storage == null) {
+      throw StateError('InjectionContainer not initialized. Call init() first.');
+    }
+    final repository = SettingsRepositoryImpl(_storage!);
+    return SettingsBloc(GetSettings(repository), SaveSettings(repository));
   }
 }
 
