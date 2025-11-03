@@ -53,6 +53,16 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  msix: ^3.16.12
+
+# Конфигурация для MSIX установщика
+msix_config:
+  display_name: IPTVCA
+  publisher_display_name: IPTVCA
+  identity_name: com.iptvca.app
+  publisher: CN=IPTVCA
+  msix_version: 1.0.0.0
+  logo_path: assets/icon.png
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
