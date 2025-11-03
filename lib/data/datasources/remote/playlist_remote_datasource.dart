@@ -2,7 +2,6 @@
 import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:convert';
-import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:iptvca/core/errors/failures.dart';
 import 'package:iptvca/core/constants/app_constants.dart';
@@ -64,35 +63,24 @@ class PlaylistRemoteDataSourceImpl implements PlaylistRemoteDataSource {
   Future<List<ChannelModel>> parsePlaylistFromFile(String filePath) async {
     try {
       developer.log('Чтение файла плейлиста: $filePath', name: 'PlaylistRemoteDataSource');
+      final file = File(filePath);
+      if (!await file.exists()) {
+        throw ValidationFailure(message: 'Файл не найден: $filePath');
+      }
+      final fileSize = await file.length();
+      developer.log('Размер файла: $fileSize байт', name: 'PlaylistRemoteDataSource');
       String content;
-      if (filePath.startsWith('assets/')) {
+      try {
+        content = await file.readAsString(encoding: utf8);
+        developer.log('Файл прочитан как UTF-8', name: 'PlaylistRemoteDataSource');
+      } catch (e) {
+        developer.log('Ошибка чтения UTF-8: $e, пробую Latin1', name: 'PlaylistRemoteDataSource');
         try {
-          developer.log('Попытка загрузить из assets: $filePath', name: 'PlaylistRemoteDataSource');
-          content = await rootBundle.loadString(filePath);
-          developer.log('Файл загружен из assets как UTF-8', name: 'PlaylistRemoteDataSource');
-        } catch (e) {
-          developer.log('Ошибка загрузки из assets: $e', name: 'PlaylistRemoteDataSource');
-          throw ValidationFailure(message: 'Ошибка загрузки из assets: $e');
-        }
-      } else {
-        final file = File(filePath);
-        if (!await file.exists()) {
-          throw ValidationFailure(message: 'Файл не найден: $filePath');
-        }
-        final fileSize = await file.length();
-        developer.log('Размер файла: $fileSize байт', name: 'PlaylistRemoteDataSource');
-        try {
-          content = await file.readAsString(encoding: utf8);
-          developer.log('Файл прочитан как UTF-8', name: 'PlaylistRemoteDataSource');
-        } catch (e) {
-          developer.log('Ошибка чтения UTF-8: $e, пробую Latin1', name: 'PlaylistRemoteDataSource');
-          try {
-            content = await file.readAsString(encoding: latin1);
-            developer.log('Файл прочитан как Latin1', name: 'PlaylistRemoteDataSource');
-          } catch (e2) {
-            developer.log('Ошибка чтения Latin1: $e2, пробую дефолтную кодировку', name: 'PlaylistRemoteDataSource');
-            content = await file.readAsString();
-          }
+          content = await file.readAsString(encoding: latin1);
+          developer.log('Файл прочитан как Latin1', name: 'PlaylistRemoteDataSource');
+        } catch (e2) {
+          developer.log('Ошибка чтения Latin1: $e2, пробую дефолтную кодировку', name: 'PlaylistRemoteDataSource');
+          content = await file.readAsString();
         }
       }
       developer.log('Длина содержимого: ${content.length} символов', name: 'PlaylistRemoteDataSource');

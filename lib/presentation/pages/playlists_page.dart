@@ -160,19 +160,6 @@ class PlaylistsPageView extends StatelessWidget {
               icon: const Icon(Icons.folder),
               label: const Text('Выбрать файл'),
             ),
-            const SizedBox(height: 8),
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-                context.read<PlaylistBloc>().add(
-                      const LoadPlaylistFromFileEvent(
-                        'assets/imbrickiy_Edem.m3u8',
-                      ),
-                    );
-              },
-              icon: const Icon(Icons.upload_file),
-              label: const Text('Загрузить из assets'),
-            ),
           ],
         ),
         actions: [
