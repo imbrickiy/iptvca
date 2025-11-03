@@ -429,6 +429,7 @@ class _PlayerPageState extends State<PlayerPage> {
   bool? _localIsFavorite;
   late final bool _supportsWindowControls;
   bool _isAlwaysOnTop = false;
+  bool _hasInitializedFromExtra = false;
 
   @override
   void initState() {
@@ -446,6 +447,9 @@ class _PlayerPageState extends State<PlayerPage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    if (_hasInitializedFromExtra) {
+      return;
+    }
     final extra = GoRouterState.of(context).extra;
     if (extra != null) {
       Channel? channel;
@@ -456,15 +460,14 @@ class _PlayerPageState extends State<PlayerPage> {
       } else if (extra is String) {
         url = extra;
       }
-      if (url != null && url.isNotEmpty) {
-        if (_videoUrl != url) {
-          _disposeController();
-          _videoUrl = url;
-          _currentChannel = channel;
-          _errorMessage = null;
-          _localIsFavorite = null;
-          _initializePlayer(_videoUrl!);
-        }
+      if (url != null && url.isNotEmpty && _videoUrl != url) {
+        _disposeController();
+        _videoUrl = url;
+        _currentChannel = channel;
+        _errorMessage = null;
+        _localIsFavorite = null;
+        _hasInitializedFromExtra = true;
+        _initializePlayer(_videoUrl!);
       }
     }
   }
