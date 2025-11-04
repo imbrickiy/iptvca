@@ -7,15 +7,36 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:iptvca/core/di/injection_container.dart';
+import 'package:iptvca/core/utils/debounce.dart';
 import 'package:iptvca/presentation/bloc/channel/channel_bloc.dart';
 import 'package:iptvca/presentation/bloc/channel/channel_event.dart';
 import 'package:iptvca/presentation/bloc/channel/channel_state.dart';
 import 'package:iptvca/domain/entities/channel.dart';
+import 'package:iptvca/presentation/widgets/epg_programs_dialog.dart';
 import 'package:window_manager/window_manager.dart';
 
-class _ChannelSelectorDrawer extends StatelessWidget {
+class _ChannelSelectorDrawer extends StatefulWidget {
   const _ChannelSelectorDrawer({required this.onChannelSelected});
   final void Function(Channel) onChannelSelected;
+
+  @override
+  State<_ChannelSelectorDrawer> createState() => _ChannelSelectorDrawerState();
+}
+
+class _ChannelSelectorDrawerState extends State<_ChannelSelectorDrawer> {
+  late final Debounce _debounce;
+
+  @override
+  void initState() {
+    super.initState();
+    _debounce = Debounce(const Duration(milliseconds: 300));
+  }
+
+  @override
+  void dispose() {
+    _debounce.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -141,10 +162,10 @@ class _ChannelSelectorDrawer extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.home),
             title: const Text('Главная'),
-            onTap: () {
+            onTap: () => _debounce(() {
               Navigator.of(context).pop();
               context.go('/');
-            },
+            }),
           ),
           const Divider(),
           Expanded(
@@ -196,15 +217,9 @@ class _ChannelSelectorDrawer extends StatelessWidget {
                       ),
                     );
                   }
-                  return ListView.builder(
-                    itemCount: state.filteredChannels.length,
-                    itemBuilder: (context, index) {
-                      final channel = state.filteredChannels[index];
-                      return _ChannelDrawerItem(
-                        channel: channel,
-                        onChannelSelected: onChannelSelected,
-                      );
-                    },
+                  return _ChannelsGroupedList(
+                    channels: state.filteredChannels,
+                    onChannelSelected: widget.onChannelSelected,
                   );
                 }
                 return const Center(child: Text('Загрузите плейлист'));
@@ -213,6 +228,54 @@ class _ChannelSelectorDrawer extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ChannelsGroupedList extends StatefulWidget {
+  const _ChannelsGroupedList({
+    required this.channels,
+    required this.onChannelSelected,
+  });
+  final List<Channel> channels;
+  final void Function(Channel) onChannelSelected;
+
+  @override
+  State<_ChannelsGroupedList> createState() => _ChannelsGroupedListState();
+}
+
+class _ChannelsGroupedListState extends State<_ChannelsGroupedList> {
+  Map<String, List<Channel>> _groupChannelsByCategory(List<Channel> channels) {
+    final Map<String, List<Channel>> grouped = {};
+    for (final channel in channels) {
+      final category = channel.groupTitle ?? 'Без категории';
+      grouped.putIfAbsent(category, () => []).add(channel);
+    }
+    return grouped;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final groupedChannels = _groupChannelsByCategory(widget.channels);
+    final categories = groupedChannels.keys.toList()..sort();
+    return ListView.builder(
+      itemCount: categories.length,
+      itemBuilder: (context, index) {
+        final category = categories[index];
+        final categoryChannels = groupedChannels[category]!;
+        return ExpansionTile(
+          initiallyExpanded: false,
+          leading: const Icon(Icons.folder_outlined),
+          title: Text(category),
+          subtitle: Text('${categoryChannels.length} каналов'),
+          children: categoryChannels.map((channel) {
+            return _ChannelDrawerItem(
+              channel: channel,
+              onChannelSelected: widget.onChannelSelected,
+            );
+          }).toList(),
+        );
+      },
     );
   }
 }
@@ -230,7 +293,20 @@ class _ChannelDrawerItem extends StatefulWidget {
 }
 
 class _ChannelDrawerItemState extends State<_ChannelDrawerItem> {
+  late final Debounce _debounce;
   bool? _localIsFavorite;
+
+  @override
+  void initState() {
+    super.initState();
+    _debounce = Debounce(const Duration(milliseconds: 300));
+  }
+
+  @override
+  void dispose() {
+    _debounce.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -293,26 +369,26 @@ class _ChannelDrawerItemState extends State<_ChannelDrawerItem> {
           subtitle: currentChannel.groupTitle != null
               ? Text(currentChannel.groupTitle!)
               : null,
-          trailing: IconButton(
-            icon: Icon(
-              isFavorite ? Icons.favorite : Icons.favorite_border,
-              color: isFavorite ? Colors.red : null,
+            trailing: IconButton(
+              icon: Icon(
+                isFavorite ? Icons.favorite : Icons.favorite_border,
+                color: isFavorite ? Colors.red : null,
+              ),
+              onPressed: () => _debounce(() {
+                final newFavoriteStatus = !isFavorite;
+                setState(() {
+                  _localIsFavorite = newFavoriteStatus;
+                });
+                context.read<ChannelBloc>().add(
+                      ToggleFavoriteEvent(currentChannel),
+                    );
+              }),
             ),
-            onPressed: () {
-              final newFavoriteStatus = !isFavorite;
-              setState(() {
-                _localIsFavorite = newFavoriteStatus;
-              });
-              context.read<ChannelBloc>().add(
-                ToggleFavoriteEvent(currentChannel),
-              );
-            },
-          ),
-          onTap: () {
+          onTap: () => _debounce(() {
             context.read<ChannelBloc>().add(SelectChannelEvent(currentChannel));
             Navigator.of(context).pop();
             widget.onChannelSelected(currentChannel);
-          },
+          }),
         );
       },
     );
@@ -326,7 +402,7 @@ class PlayerPage extends StatefulWidget {
   State<PlayerPage> createState() => _PlayerPageState();
 }
 
-class _PlayerAppBar extends StatelessWidget implements PreferredSizeWidget {
+class _PlayerAppBar extends StatefulWidget implements PreferredSizeWidget {
   const _PlayerAppBar({
     required this.currentChannel,
     required this.localIsFavorite,
@@ -334,6 +410,7 @@ class _PlayerAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.showAlwaysOnTopControl,
     required this.isAlwaysOnTop,
     required this.onToggleAlwaysOnTop,
+    required this.onShowEpg,
   });
 
   final Channel currentChannel;
@@ -342,9 +419,29 @@ class _PlayerAppBar extends StatelessWidget implements PreferredSizeWidget {
   final bool showAlwaysOnTopControl;
   final bool isAlwaysOnTop;
   final VoidCallback onToggleAlwaysOnTop;
+  final VoidCallback onShowEpg;
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+
+  @override
+  State<_PlayerAppBar> createState() => _PlayerAppBarState();
+}
+
+class _PlayerAppBarState extends State<_PlayerAppBar> {
+  late final Debounce _debounce;
+
+  @override
+  void initState() {
+    super.initState();
+    _debounce = Debounce(const Duration(milliseconds: 300));
+  }
+
+  @override
+  void dispose() {
+    _debounce.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -352,10 +449,10 @@ class _PlayerAppBar extends StatelessWidget implements PreferredSizeWidget {
       buildWhen: (previous, current) {
         if (previous is ChannelsLoaded && current is ChannelsLoaded) {
           final prevChannelIndex = previous.channels.indexWhere(
-            (c) => c.id == currentChannel.id,
+            (c) => c.id == widget.currentChannel.id,
           );
           final currChannelIndex = current.channels.indexWhere(
-            (c) => c.id == currentChannel.id,
+            (c) => c.id == widget.currentChannel.id,
           );
           if (prevChannelIndex != -1 && currChannelIndex != -1) {
             final prevChannel = previous.channels[prevChannelIndex];
@@ -366,19 +463,19 @@ class _PlayerAppBar extends StatelessWidget implements PreferredSizeWidget {
         return previous != current;
       },
       builder: (context, state) {
-        Channel channel = currentChannel;
-        bool favorite = currentChannel.isFavorite;
+        Channel channel = widget.currentChannel;
+        bool favorite = widget.currentChannel.isFavorite;
         if (state is ChannelsLoaded) {
           final channelIndex = state.channels.indexWhere(
-            (c) => c.id == currentChannel.id,
+            (c) => c.id == widget.currentChannel.id,
           );
           if (channelIndex != -1) {
             channel = state.channels[channelIndex];
             favorite = channel.isFavorite;
           }
         }
-        if (localIsFavorite != null) {
-          favorite = localIsFavorite!;
+        if (widget.localIsFavorite != null) {
+          favorite = widget.localIsFavorite!;
         }
         return AppBar(
           title: Row(
@@ -389,10 +486,10 @@ class _PlayerAppBar extends StatelessWidget implements PreferredSizeWidget {
               ),
               const SizedBox(width: 8),
               GestureDetector(
-                onTap: () {
-                  onLocalFavoriteChanged(!favorite);
+                onTap: () => _debounce(() {
+                  widget.onLocalFavoriteChanged(!favorite);
                   context.read<ChannelBloc>().add(ToggleFavoriteEvent(channel));
-                },
+                }),
                 child: Icon(
                   favorite ? Icons.favorite : Icons.favorite_border,
                   color: favorite ? Colors.red : null,
@@ -402,15 +499,20 @@ class _PlayerAppBar extends StatelessWidget implements PreferredSizeWidget {
             ],
           ),
           actions: [
-            if (showAlwaysOnTopControl)
+            IconButton(
+              tooltip: 'Телепрограмма',
+              icon: const Icon(Icons.schedule),
+              onPressed: widget.onShowEpg,
+            ),
+            if (widget.showAlwaysOnTopControl)
               IconButton(
-                tooltip: isAlwaysOnTop
+                tooltip: widget.isAlwaysOnTop
                     ? 'Отключить закрепление поверх всех окон'
                     : 'Развернуть поверх всех окон',
                 icon: Icon(
-                  isAlwaysOnTop ? Icons.push_pin : Icons.push_pin_outlined,
+                  widget.isAlwaysOnTop ? Icons.push_pin : Icons.push_pin_outlined,
                 ),
-                onPressed: onToggleAlwaysOnTop,
+                onPressed: widget.onToggleAlwaysOnTop,
               ),
           ],
         );
@@ -428,12 +530,15 @@ class _PlayerPageState extends State<PlayerPage> {
   bool _isInitializing = false;
   bool? _localIsFavorite;
   late final bool _supportsWindowControls;
+  late final Debounce _debounce;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   bool _isAlwaysOnTop = false;
   bool _hasInitializedFromExtra = false;
 
   @override
   void initState() {
     super.initState();
+    _debounce = Debounce(const Duration(milliseconds: 300));
     _supportsWindowControls =
         !kIsWeb &&
         (defaultTargetPlatform == TargetPlatform.windows ||
@@ -632,6 +737,7 @@ class _PlayerPageState extends State<PlayerPage> {
 
   @override
   void dispose() {
+    _debounce.dispose();
     _disposeController();
     super.dispose();
   }
@@ -668,18 +774,18 @@ class _PlayerPageState extends State<PlayerPage> {
                 ),
                 const SizedBox(height: 32),
                 ElevatedButton.icon(
-                  onPressed: () {
+                  onPressed: () => _debounce(() {
                     setState(() {
                       _errorMessage = null;
                     });
                     _initializePlayer(_videoUrl!);
-                  },
+                  }),
                   icon: const Icon(Icons.refresh),
                   label: const Text('Повторить'),
                 ),
                 const SizedBox(height: 16),
                 TextButton(
-                  onPressed: () => context.pop(),
+                  onPressed: () => _debounce(() => context.pop()),
                   child: const Text('Назад'),
                 ),
               ],
@@ -701,6 +807,7 @@ class _PlayerPageState extends State<PlayerPage> {
         return bloc;
       },
       child: Scaffold(
+        key: _scaffoldKey,
         appBar: _currentChannel != null
             ? _PlayerAppBar(
                 currentChannel: _currentChannel!,
@@ -713,6 +820,9 @@ class _PlayerPageState extends State<PlayerPage> {
                 showAlwaysOnTopControl: _supportsWindowControls,
                 isAlwaysOnTop: _isAlwaysOnTop,
                 onToggleAlwaysOnTop: _toggleAlwaysOnTop,
+                onShowEpg: () {
+                  _scaffoldKey.currentState?.openEndDrawer();
+                },
               )
             : AppBar(title: const Text('Плеер')),
         drawer: _ChannelSelectorDrawer(
@@ -720,6 +830,11 @@ class _PlayerPageState extends State<PlayerPage> {
             _switchChannel(channel);
           },
         ),
+        endDrawer: _currentChannel != null
+            ? EpgProgramsDialog(
+                channel: _currentChannel!,
+              )
+            : null,
         body: Stack(
           children: [
             Center(child: Video(controller: _videoController!)),

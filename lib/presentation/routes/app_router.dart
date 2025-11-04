@@ -5,9 +5,15 @@ import 'package:iptvca/presentation/pages/channels_page.dart';
 import 'package:iptvca/presentation/pages/player_page.dart';
 import 'package:iptvca/presentation/pages/settings_page.dart';
 import 'package:iptvca/presentation/pages/playlists_page.dart';
+import 'package:iptvca/presentation/pages/splash_screen.dart';
 
 final appRouter = GoRouter(
+  initialLocation: '/splash',
   routes: [
+    GoRoute(
+      path: '/splash',
+      builder: (context, state) => const SplashScreen(),
+    ),
     GoRoute(
       path: '/',
       builder: (context, state) => const HomePage(),

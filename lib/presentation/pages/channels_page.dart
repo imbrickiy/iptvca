@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:iptvca/core/di/injection_container.dart';
+import 'package:iptvca/core/utils/debounce.dart';
 import 'package:iptvca/presentation/bloc/channel/channel_bloc.dart';
 import 'package:iptvca/presentation/bloc/channel/channel_event.dart';
 import 'package:iptvca/presentation/bloc/channel/channel_state.dart';
@@ -23,6 +24,7 @@ class _GroupsScrollWidget extends StatefulWidget {
 
 class _GroupsScrollWidgetState extends State<_GroupsScrollWidget> {
   late final ScrollController _scrollController;
+  late final Debounce _debounce;
   bool _canScrollLeft = false;
   bool _canScrollRight = false;
 
@@ -30,6 +32,7 @@ class _GroupsScrollWidgetState extends State<_GroupsScrollWidget> {
   void initState() {
     super.initState();
     _scrollController = ScrollController();
+    _debounce = Debounce(const Duration(milliseconds: 300));
     _scrollController.addListener(_updateScrollButtons);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _updateScrollButtons();
@@ -40,6 +43,7 @@ class _GroupsScrollWidgetState extends State<_GroupsScrollWidget> {
   void dispose() {
     _scrollController.removeListener(_updateScrollButtons);
     _scrollController.dispose();
+    _debounce.dispose();
     super.dispose();
   }
 
@@ -59,23 +63,27 @@ class _GroupsScrollWidgetState extends State<_GroupsScrollWidget> {
   }
 
   void _scrollLeft() {
-    if (_scrollController.hasClients) {
-      _scrollController.animateTo(
-        (_scrollController.offset - 200).clamp(0.0, _scrollController.position.maxScrollExtent),
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
-    }
+    _debounce(() {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          (_scrollController.offset - 200).clamp(0.0, _scrollController.position.maxScrollExtent),
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   void _scrollRight() {
-    if (_scrollController.hasClients) {
-      _scrollController.animateTo(
-        (_scrollController.offset + 200).clamp(0.0, _scrollController.position.maxScrollExtent),
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
-    }
+    _debounce(() {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          (_scrollController.offset + 200).clamp(0.0, _scrollController.position.maxScrollExtent),
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   @override
@@ -108,13 +116,13 @@ class _GroupsScrollWidgetState extends State<_GroupsScrollWidget> {
                     child: FilterChip(
                       label: Text(group),
                       selected: isSelected,
-                      onSelected: (selected) {
+                      onSelected: (selected) => _debounce(() {
                         context.read<ChannelBloc>().add(
                               FilterChannelsByGroupEvent(
                                 selected ? group : '',
                               ),
                             );
-                      },
+                      }),
                     ),
                   );
                 },
@@ -132,8 +140,27 @@ class _GroupsScrollWidgetState extends State<_GroupsScrollWidget> {
   }
 }
 
-class ChannelsPage extends StatelessWidget {
+class ChannelsPage extends StatefulWidget {
   const ChannelsPage({super.key});
+
+  @override
+  State<ChannelsPage> createState() => _ChannelsPageState();
+}
+
+class _ChannelsPageState extends State<ChannelsPage> {
+  late final Debounce _debounce;
+
+  @override
+  void initState() {
+    super.initState();
+    _debounce = Debounce(const Duration(milliseconds: 300));
+  }
+
+  @override
+  void dispose() {
+    _debounce.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -184,7 +211,7 @@ class ChannelsPage extends StatelessWidget {
                         ),
                         const SizedBox(height: 32),
                         ElevatedButton.icon(
-                          onPressed: () => context.push('/playlists'),
+                          onPressed: () => _debounce(() => context.push('/playlists')),
                           icon: const Icon(Icons.playlist_play),
                           label: const Text('Перейти к плейлистам'),
                         ),
@@ -224,11 +251,11 @@ class ChannelsPage extends StatelessWidget {
                           tooltip: state.showFavoritesOnly
                               ? 'Показать все каналы'
                               : 'Показать только избранные',
-                          onPressed: () {
+                          onPressed: () => _debounce(() {
                             context.read<ChannelBloc>().add(
                                   FilterFavoritesEvent(!state.showFavoritesOnly),
                                 );
-                          },
+                          }),
                         ),
                       ],
                     ),
@@ -295,11 +322,11 @@ class ChannelsPage extends StatelessWidget {
                       ),
                       const SizedBox(height: 32),
                       ElevatedButton.icon(
-                        onPressed: () {
+                        onPressed: () => _debounce(() {
                           context.read<ChannelBloc>().add(
                                 const LoadChannelsEvent(),
                               );
-                        },
+                        }),
                         icon: const Icon(Icons.refresh),
                         label: const Text('Повторить'),
                       ),

@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 import 'package:iptvca/core/storage/file_storage.dart';
 import 'package:iptvca/core/storage/shared_preferences_storage.dart';
 import 'package:iptvca/core/storage/storage_interface.dart';
+import 'package:iptvca/core/services/network_cache_service.dart';
 import 'package:iptvca/data/datasources/local/playlist_local_datasource.dart';
 import 'package:iptvca/data/datasources/remote/m3u_parser.dart';
 import 'package:iptvca/data/datasources/remote/playlist_remote_datasource.dart';
@@ -29,7 +30,11 @@ class InjectionContainer {
 
   StorageInterface? _storage;
   http.Client? _httpClient;
+  NetworkCacheService? _cacheService;
   final Uuid _uuid = const Uuid();
+
+  StorageInterface? get storage => _storage;
+  NetworkCacheService? get cacheService => _cacheService;
 
   Future<void> init() async {
     try {
@@ -47,6 +52,8 @@ class InjectionContainer {
           rethrow;
         }
       }
+      _cacheService = NetworkCacheService(_storage);
+      developer.log('NetworkCacheService инициализирован');
     } catch (e) {
       throw StateError('Ошибка инициализации InjectionContainer: $e');
     }
@@ -57,7 +64,11 @@ class InjectionContainer {
       throw StateError('InjectionContainer not initialized. Call init() first.');
     }
     final parser = M3uParser(_uuid);
-    final remoteDataSource = PlaylistRemoteDataSourceImpl(_httpClient!, parser);
+    final remoteDataSource = PlaylistRemoteDataSourceImpl(
+      _httpClient!,
+      parser,
+      _cacheService,
+    );
     final localDataSource = PlaylistLocalDataSourceImpl(_storage!);
     final repository = PlaylistRepositoryImpl(remoteDataSource, localDataSource);
 
@@ -75,7 +86,11 @@ class InjectionContainer {
       throw StateError('InjectionContainer not initialized. Call init() first.');
     }
     final parser = M3uParser(_uuid);
-    final remoteDataSource = PlaylistRemoteDataSourceImpl(_httpClient!, parser);
+    final remoteDataSource = PlaylistRemoteDataSourceImpl(
+      _httpClient!,
+      parser,
+      _cacheService,
+    );
     final localDataSource = PlaylistLocalDataSourceImpl(_storage!);
     final repository = PlaylistRepositoryImpl(remoteDataSource, localDataSource);
 

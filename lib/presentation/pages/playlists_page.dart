@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:iptvca/core/di/injection_container.dart';
+import 'package:iptvca/core/utils/debounce.dart';
 import 'package:iptvca/presentation/bloc/playlist/playlist_bloc.dart';
 import 'package:iptvca/presentation/bloc/playlist/playlist_event.dart';
 import 'package:iptvca/presentation/bloc/playlist/playlist_state.dart';
@@ -25,8 +26,27 @@ class PlaylistsPage extends StatelessWidget {
   }
 }
 
-class PlaylistsPageView extends StatelessWidget {
+class PlaylistsPageView extends StatefulWidget {
   const PlaylistsPageView({super.key});
+
+  @override
+  State<PlaylistsPageView> createState() => _PlaylistsPageViewState();
+}
+
+class _PlaylistsPageViewState extends State<PlaylistsPageView> {
+  late final Debounce _debounce;
+
+  @override
+  void initState() {
+    super.initState();
+    _debounce = Debounce(const Duration(milliseconds: 300));
+  }
+
+  @override
+  void dispose() {
+    _debounce.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +56,7 @@ class PlaylistsPageView extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: () => _showAddPlaylistDialog(context),
+            onPressed: () => _debounce(() => _showAddPlaylistDialog(context)),
           ),
         ],
       ),
@@ -54,11 +74,11 @@ class PlaylistsPageView extends StatelessWidget {
                   Text(state.message),
                   const SizedBox(height: 16),
                   ElevatedButton(
-                    onPressed: () {
+                    onPressed: () => _debounce(() {
                       context.read<PlaylistBloc>().add(
                             const LoadPlaylistsEvent(),
                           );
-                    },
+                    }),
                     child: const Text('Повторить'),
                   ),
                 ],
@@ -86,7 +106,7 @@ class PlaylistsPageView extends StatelessWidget {
                     const Text('Нет плейлистов'),
                     const SizedBox(height: 16),
                     ElevatedButton(
-                      onPressed: () => _showAddPlaylistDialog(context),
+                      onPressed: () => _debounce(() => _showAddPlaylistDialog(context)),
                       child: const Text('Добавить плейлист'),
                     ),
                   ],
@@ -103,15 +123,15 @@ class PlaylistsPageView extends StatelessWidget {
                   subtitle: Text('${playlist.channels.length} каналов'),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete),
-                    onPressed: () {
+                    onPressed: () => _debounce(() {
                       context.read<PlaylistBloc>().add(
                             DeletePlaylistEvent(playlist.id),
                           );
-                    },
+                    }),
                   ),
-                  onTap: () {
+                  onTap: () => _debounce(() {
                     context.push('/channels', extra: playlist.channels);
-                  },
+                  }),
                 );
               },
             );
@@ -142,12 +162,11 @@ class PlaylistsPageView extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
-              onPressed: () async {
+              onPressed: () => _debounce(() async {
                 final result = await FilePicker.platform.pickFiles(
                   type: FileType.custom,
                   allowedExtensions: ['m3u', 'm3u8'],
                 );
-
                 if (result != null && result.files.single.path != null) {
                   Navigator.pop(dialogContext);
                   context.read<PlaylistBloc>().add(
@@ -156,7 +175,7 @@ class PlaylistsPageView extends StatelessWidget {
                         ),
                       );
                 }
-              },
+              }),
               icon: const Icon(Icons.folder),
               label: const Text('Выбрать файл'),
             ),
@@ -164,18 +183,18 @@ class PlaylistsPageView extends StatelessWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
+            onPressed: () => _debounce(() => Navigator.pop(dialogContext)),
             child: const Text('Отмена'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () => _debounce(() {
               if (urlController.text.isNotEmpty) {
                 Navigator.pop(dialogContext);
                 context.read<PlaylistBloc>().add(
                       LoadPlaylistFromUrlEvent(urlController.text),
                     );
               }
-            },
+            }),
             child: const Text('Загрузить'),
           ),
         ],

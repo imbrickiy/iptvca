@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:iptvca/core/utils/debounce.dart';
 import 'package:iptvca/domain/entities/settings.dart' as entities;
 import 'package:iptvca/presentation/bloc/settings/settings_bloc.dart';
 import 'package:iptvca/presentation/bloc/settings/settings_event.dart';
@@ -44,19 +45,38 @@ class SettingsModal extends StatelessWidget {
   }
 }
 
-class _SettingsPageContent extends StatelessWidget {
+class _SettingsPageContent extends StatefulWidget {
   const _SettingsPageContent({this.isModal = false});
   final bool isModal;
+
+  @override
+  State<_SettingsPageContent> createState() => _SettingsPageContentState();
+}
+
+class _SettingsPageContentState extends State<_SettingsPageContent> {
+  late final Debounce _debounce;
+
+  @override
+  void initState() {
+    super.initState();
+    _debounce = Debounce(const Duration(milliseconds: 300));
+  }
+
+  @override
+  void dispose() {
+    _debounce.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Настройки'),
-        leading: isModal
+        leading: widget.isModal
             ? IconButton(
                 icon: const Icon(Icons.close),
-                onPressed: () => Navigator.of(context).pop(),
+                onPressed: () => _debounce(() => Navigator.of(context).pop()),
               )
             : null,
       ),
@@ -79,11 +99,11 @@ class _SettingsPageContent extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   ElevatedButton(
-                    onPressed: () {
+                    onPressed: () => _debounce(() {
                       context.read<SettingsBloc>().add(
                         const LoadSettingsEvent(),
                       );
-                    },
+                    }),
                     child: const Text('Повторить'),
                   ),
                 ],

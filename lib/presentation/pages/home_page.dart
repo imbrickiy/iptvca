@@ -1,17 +1,57 @@
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:iptvca/core/utils/debounce.dart';
 import 'package:iptvca/presentation/pages/settings_page.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
-  
-  void _showSettingsModal(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => const SettingsModal(),
-      barrierDismissible: true,
-    );
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  late final Debounce _debounce;
+
+  @override
+  void initState() {
+    super.initState();
+    _debounce = Debounce(const Duration(milliseconds: 300));
+  }
+
+  @override
+  void dispose() {
+    _debounce.dispose();
+    super.dispose();
+  }
+
+  void _showSettingsModal() {
+    _debounce(() {
+      showDialog(
+        context: context,
+        builder: (context) => const SettingsModal(),
+        barrierDismissible: true,
+      );
+    });
+  }
+
+  void _navigateToPlaylists() {
+    _debounce(() {
+      context.push('/playlists');
+    });
+  }
+
+  void _navigateToChannels() {
+    _debounce(() {
+      context.push('/channels');
+    });
+  }
+
+  void _navigateToFavorites() {
+    _debounce(() {
+      context.push('/channels?favorites=true');
+    });
   }
 
   @override
@@ -24,7 +64,7 @@ class HomePage extends StatelessWidget {
             padding: const EdgeInsets.only(right: 8),
             child: IconButton(
               icon: const Icon(Icons.settings),
-              onPressed: () => _showSettingsModal(context),
+              onPressed: _showSettingsModal,
             ),
           ),
         ],
@@ -36,7 +76,7 @@ class HomePage extends StatelessWidget {
           children: [
             Card(
               child: InkWell(
-                onTap: () => context.push('/playlists'),
+                onTap: _navigateToPlaylists,
                 child: const Padding(
                   padding: EdgeInsets.all(24.0),
                   child: Row(
@@ -68,7 +108,7 @@ class HomePage extends StatelessWidget {
             const SizedBox(height: 16),
             Card(
               child: InkWell(
-                onTap: () => context.push('/channels'),
+                onTap: _navigateToChannels,
                 child: const Padding(
                   padding: EdgeInsets.all(24.0),
                   child: Row(
@@ -100,7 +140,7 @@ class HomePage extends StatelessWidget {
             const SizedBox(height: 16),
             Card(
               child: InkWell(
-                onTap: () => context.push('/channels?favorites=true'),
+                onTap: _navigateToFavorites,
                 child: const Padding(
                   padding: EdgeInsets.all(24.0),
                   child: Row(
