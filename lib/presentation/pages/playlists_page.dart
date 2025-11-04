@@ -192,10 +192,10 @@ class _PlaylistsPageViewState extends State<PlaylistsPageView> {
     );
   }
 
-  Future<void> _savePlaylistFromChannels(
+  void _savePlaylistFromChannels(
     BuildContext context,
     List<Channel> channels,
-  ) async {
+  ) {
     if (channels.isEmpty) {
       context.read<PlaylistBloc>().add(const LoadPlaylistsEvent());
       return;
@@ -211,11 +211,6 @@ class _PlaylistsPageViewState extends State<PlaylistsPageView> {
     );
 
     context.read<PlaylistBloc>().add(SavePlaylistEvent(playlist));
-    
-    await Future.delayed(const Duration(milliseconds: 500));
-    await context.read<PlaylistBloc>().stream.firstWhere(
-      (state) => state is PlaylistLoaded || state is PlaylistError,
-    );
     
     if (context.mounted) {
       context.push('/channels', extra: channels);

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:iptvca/core/theme/app_colors.dart';
 import 'package:iptvca/domain/entities/settings.dart' as entities;
 import 'package:iptvca/presentation/bloc/settings/settings_bloc.dart';
 import 'package:iptvca/presentation/bloc/settings/settings_event.dart';
@@ -30,7 +31,7 @@ class SettingsModal extends StatelessWidget {
     }
     return Dialog(
       insetPadding: EdgeInsets.zero,
-      backgroundColor: Colors.transparent,
+      backgroundColor: AppColors.transparent,
       child: Container(
         width: MediaQuery.of(context).size.width,
         height: MediaQuery.of(context).size.height,
@@ -76,7 +77,7 @@ class _SettingsPageContentState extends State<_SettingsPageContent> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                  const Icon(Icons.error_outline, size: 64, color: AppColors.errorIcon),
                   const SizedBox(height: 16),
                   Text(
                     state.message,

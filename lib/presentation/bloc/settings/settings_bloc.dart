@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:iptvca/domain/usecases/get_settings.dart';
@@ -6,10 +7,8 @@ import 'package:iptvca/presentation/bloc/settings/settings_event.dart';
 import 'package:iptvca/presentation/bloc/settings/settings_state.dart';
 
 class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
-  SettingsBloc(
-    this._getSettings,
-    this._saveSettings,
-  ) : super(const SettingsInitial()) {
+  SettingsBloc(this._getSettings, this._saveSettings)
+    : super(const SettingsInitial()) {
     on<LoadSettingsEvent>(_onLoadSettings);
     on<UpdateAutoplayEvent>(_onUpdateAutoplay);
     on<UpdateVideoQualityEvent>(_onUpdateVideoQuality);
@@ -22,6 +21,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
 
   final GetSettings _getSettings;
   final SaveSettings _saveSettings;
+  Timer? _saveDebounceTimer;
 
   Future<void> _onLoadSettings(
     LoadSettingsEvent event,
@@ -31,7 +31,8 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     try {
       final result = await _getSettings();
       result.fold(
-        (failure) => emit(SettingsError(failure.message ?? 'Неизвестная ошибка')),
+        (failure) =>
+            emit(SettingsError(failure.message ?? 'Неизвестная ошибка')),
         (settings) => emit(SettingsLoaded(settings: settings)),
       );
     } catch (e) {
@@ -130,23 +131,28 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   ) async {
     if (state is SettingsLoaded) {
       final currentState = state as SettingsLoaded;
-      emit(currentState.copyWith(isSaving: true));
-      try {
-        final result = await _saveSettings(currentState.settings);
-        result.fold(
-          (failure) {
-            developer.log('Ошибка сохранения настроек', error: failure.message);
-            emit(SettingsError(failure.message ?? 'Неизвестная ошибка'));
-          },
-          (_) {
-            emit(currentState.copyWith(isSaving: false));
-          },
-        );
-      } catch (e) {
-        developer.log('Ошибка сохранения настроек', error: e);
-        emit(SettingsError('Ошибка сохранения настроек: $e'));
-      }
+      _saveDebounceTimer?.cancel();
+      _saveDebounceTimer = Timer(const Duration(milliseconds: 300), () async {
+        try {
+          final result = await _saveSettings(currentState.settings);
+          result.fold(
+            (failure) {
+              developer.log('Ошибка сохранения настроек', error: failure.message);
+            },
+            (_) {
+              developer.log('Настройки сохранены', name: 'SettingsBloc');
+            },
+          );
+        } catch (e) {
+          developer.log('Ошибка сохранения настроек', error: e);
+        }
+      });
     }
   }
-}
 
+  @override
+  Future<void> close() {
+    _saveDebounceTimer?.cancel();
+    return super.close();
+  }
+}

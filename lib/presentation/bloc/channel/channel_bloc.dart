@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:iptvca/core/constants/app_constants.dart';
 import 'package:iptvca/core/di/injection_container.dart';
 import 'package:iptvca/core/storage/storage_interface.dart';
 import 'package:iptvca/data/models/channel_model.dart';
@@ -23,7 +24,6 @@ class ChannelBloc extends Bloc<ChannelEvent, ChannelState> {
 
   final GetAllChannels _getAllChannels;
   final StorageInterface _storage;
-  static const String _favoritesKey = 'favorite_channels';
   List<Channel> _allChannels = [];
   Map<String, Channel> _channelsMap = {};
   Set<String> _favoriteChannelIds = {};
@@ -88,7 +88,7 @@ class ChannelBloc extends Bloc<ChannelEvent, ChannelState> {
 
   Future<void> _loadFavorites() async {
     try {
-      final favoritesJson = await _storage.getString(_favoritesKey);
+      final favoritesJson = await _storage.getString(AppConstants.favoritesKey);
       if (favoritesJson != null) {
         final favoritesList = await compute(_decodeFavoritesJsonCompute, favoritesJson);
         _favoriteChannelIds = favoritesList.toSet();
@@ -105,7 +105,7 @@ class ChannelBloc extends Bloc<ChannelEvent, ChannelState> {
     try {
       final favoritesList = _favoriteChannelIds.toList();
       final favoritesJson = await compute(_encodeFavoritesJsonCompute, favoritesList);
-      await _storage.setString(_favoritesKey, favoritesJson);
+      await _storage.setString(AppConstants.favoritesKey, favoritesJson);
       developer.log('Сохранено избранных каналов: ${_favoriteChannelIds.length}',
           name: 'ChannelBloc');
     } catch (e) {

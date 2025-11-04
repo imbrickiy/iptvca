@@ -7,7 +7,9 @@ import 'package:go_router/go_router.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:iptvca/core/constants/app_constants.dart';
 import 'package:iptvca/core/di/injection_container.dart';
+import 'package:iptvca/core/theme/app_colors.dart';
 import 'package:iptvca/presentation/bloc/channel/channel_bloc.dart';
 import 'package:iptvca/presentation/bloc/channel/channel_event.dart';
 import 'package:iptvca/presentation/bloc/channel/channel_state.dart';
@@ -33,7 +35,7 @@ class _ChannelSelectorDrawerState extends State<_ChannelSelectorDrawer> {
   @override
   void initState() {
     super.initState();
-    _searchDebounce = Debounce(const Duration(milliseconds: 300));
+    _searchDebounce = Debounce(AppConstants.searchDebounceDuration);
   }
 
   @override
@@ -132,7 +134,14 @@ class _ChannelSelectorDrawerState extends State<_ChannelSelectorDrawer> {
                   ),
                   onChanged: (value) {
                     _searchDebounce(() {
-                      context.read<ChannelBloc>().add(SearchChannelsEvent(value));
+                      try {
+                        context.read<ChannelBloc>().add(SearchChannelsEvent(value));
+                      } catch (e) {
+                        developer.log(
+                          'ChannelBloc не доступен для поиска: $e',
+                          name: 'PlayerPage',
+                        );
+                      }
                     });
                   },
                 ),
@@ -148,15 +157,20 @@ class _ChannelSelectorDrawerState extends State<_ChannelSelectorDrawer> {
                     state.showFavoritesOnly
                         ? Icons.favorite
                         : Icons.favorite_border,
-                    color: state.showFavoritesOnly ? Colors.red : null,
+                    color: state.showFavoritesOnly ? AppColors.favorite : null,
                   ),
                   title: const Text('Только избранные'),
                   trailing: Switch(
                     value: state.showFavoritesOnly,
                     onChanged: (value) {
-                      context.read<ChannelBloc>().add(
-                        FilterFavoritesEvent(value),
-                      );
+                      try {
+                        context.read<ChannelBloc>().add(FilterFavoritesEvent(value));
+                      } catch (e) {
+                        developer.log(
+                          'ChannelBloc не доступен для фильтра: $e',
+                          name: 'PlayerPage',
+                        );
+                      }
                     },
                   ),
                 );
@@ -188,7 +202,7 @@ class _ChannelSelectorDrawerState extends State<_ChannelSelectorDrawer> {
                         const Icon(
                           Icons.error_outline,
                           size: 64,
-                          color: Colors.red,
+                          color: AppColors.favorite,
                         ),
                         const SizedBox(height: 16),
                         Padding(
@@ -212,7 +226,7 @@ class _ChannelSelectorDrawerState extends State<_ChannelSelectorDrawer> {
                           const Icon(
                             Icons.tv_off,
                             size: 64,
-                            color: Colors.grey,
+                            color: AppColors.grey,
                           ),
                           const SizedBox(height: 16),
                           Text(
@@ -276,7 +290,7 @@ class _ChannelsGroupedListState extends State<_ChannelsGroupedList> {
     final groupedChannels = _cachedGroupedChannels!;
     final categories = _cachedCategories!;
     return ListView.builder(
-      cacheExtent: 500,
+      cacheExtent: AppConstants.playerListViewCacheExtent.toDouble(),
       itemCount: categories.length,
       itemBuilder: (context, index) {
         final category = categories[index];
@@ -327,10 +341,10 @@ class _ChannelDrawerItemState extends State<_ChannelDrawerItem> {
           final currChannelIndex = current.channels.indexWhere(
             (c) => c.id == widget.channel.id,
           );
-          if (prevChannelIndex == -1 && currChannelIndex == -1) {
+          if (prevChannelIndex == AppConstants.invalidIndex && currChannelIndex == AppConstants.invalidIndex) {
             return false;
           }
-          if (prevChannelIndex != -1 && currChannelIndex != -1) {
+          if (prevChannelIndex != AppConstants.invalidIndex && currChannelIndex != AppConstants.invalidIndex) {
             final prevChannel = previous.channels[prevChannelIndex];
             final currChannel = current.channels[currChannelIndex];
             if (prevChannel.isFavorite != currChannel.isFavorite) {
@@ -380,20 +394,32 @@ class _ChannelDrawerItemState extends State<_ChannelDrawerItem> {
             trailing: IconButton(
               icon: Icon(
                 isFavorite ? Icons.favorite : Icons.favorite_border,
-                color: isFavorite ? Colors.red : null,
+                color: isFavorite ? AppColors.favorite : null,
               ),
               onPressed: () {
                 final newFavoriteStatus = !isFavorite;
                 setState(() {
                   _localIsFavorite = newFavoriteStatus;
                 });
-                context.read<ChannelBloc>().add(
-                      ToggleFavoriteEvent(currentChannel),
-                    );
+                try {
+                  context.read<ChannelBloc>().add(ToggleFavoriteEvent(currentChannel));
+                } catch (e) {
+                  developer.log(
+                    'ChannelBloc не доступен для избранного: $e',
+                    name: 'PlayerPage',
+                  );
+                }
               },
             ),
           onTap: () {
-            context.read<ChannelBloc>().add(SelectChannelEvent(currentChannel));
+            try {
+              context.read<ChannelBloc>().add(SelectChannelEvent(currentChannel));
+            } catch (e) {
+              developer.log(
+                'ChannelBloc не доступен для выбора канала: $e',
+                name: 'PlayerPage',
+              );
+            }
             Navigator.of(context).pop();
             widget.onChannelSelected(currentChannel);
           },
@@ -449,7 +475,7 @@ class _PlayerAppBarState extends State<_PlayerAppBar> {
           final currChannelIndex = current.channels.indexWhere(
             (c) => c.id == widget.currentChannel.id,
           );
-          if (prevChannelIndex != -1 && currChannelIndex != -1) {
+          if (prevChannelIndex != AppConstants.invalidIndex && currChannelIndex != AppConstants.invalidIndex) {
             final prevChannel = previous.channels[prevChannelIndex];
             final currChannel = current.channels[currChannelIndex];
             return prevChannel.isFavorite != currChannel.isFavorite;
@@ -464,7 +490,7 @@ class _PlayerAppBarState extends State<_PlayerAppBar> {
           final channelIndex = state.channels.indexWhere(
             (c) => c.id == widget.currentChannel.id,
           );
-          if (channelIndex != -1) {
+          if (channelIndex != AppConstants.invalidIndex) {
             channel = state.channels[channelIndex];
             favorite = channel.isFavorite;
           }
@@ -483,11 +509,18 @@ class _PlayerAppBarState extends State<_PlayerAppBar> {
               GestureDetector(
                 onTap: () {
                   widget.onLocalFavoriteChanged(!favorite);
-                  context.read<ChannelBloc>().add(ToggleFavoriteEvent(channel));
+                  try {
+                    context.read<ChannelBloc>().add(ToggleFavoriteEvent(channel));
+                  } catch (e) {
+                    developer.log(
+                      'ChannelBloc не доступен для избранного: $e',
+                      name: 'PlayerPage',
+                    );
+                  }
                 },
                 child: Icon(
                   favorite ? Icons.favorite : Icons.favorite_border,
-                  color: favorite ? Colors.red : null,
+                  color: favorite ? AppColors.favorite : null,
                   size: 20,
                 ),
               ),
@@ -530,49 +563,50 @@ class _PlayerPageState extends State<PlayerPage> {
   bool _isAlwaysOnTop = false;
   bool _hasInitializedFromExtra = false;
   StreamSubscription? _errorSubscription;
+  ChannelBloc? _channelBloc;
 
   int _getBufferSizeForQuality(entities.VideoQuality quality) {
     switch (quality) {
       case entities.VideoQuality.low:
-        return 1024 * 1024 * 3;
+        return AppConstants.bufferSizeLow;
       case entities.VideoQuality.medium:
-        return 1024 * 1024 * 5;
+        return AppConstants.bufferSizeMedium;
       case entities.VideoQuality.high:
-        return 1024 * 1024 * 8;
+        return AppConstants.bufferSizeHigh;
       case entities.VideoQuality.best:
-        return 1024 * 1024 * 12;
+        return AppConstants.bufferSizeBest;
       case entities.VideoQuality.auto:
-        return 1024 * 1024 * 5;
+        return AppConstants.bufferSizeAuto;
     }
   }
 
   int _getInitialBufferSize(entities.VideoQuality quality) {
     switch (quality) {
       case entities.VideoQuality.low:
-        return 512 * 1024;
+        return AppConstants.initialBufferSizeLow;
       case entities.VideoQuality.medium:
-        return 1024 * 1024;
+        return AppConstants.initialBufferSizeMedium;
       case entities.VideoQuality.high:
-        return 2 * 1024 * 1024;
+        return AppConstants.initialBufferSizeHigh;
       case entities.VideoQuality.best:
-        return 3 * 1024 * 1024;
+        return AppConstants.initialBufferSizeBest;
       case entities.VideoQuality.auto:
-        return 1024 * 1024;
+        return AppConstants.initialBufferSizeAuto;
     }
   }
 
   int _getNetworkTimeoutForQuality(entities.VideoQuality quality) {
     switch (quality) {
       case entities.VideoQuality.low:
-        return 8000;
+        return AppConstants.networkTimeoutLow;
       case entities.VideoQuality.medium:
-        return 10000;
+        return AppConstants.networkTimeoutMedium;
       case entities.VideoQuality.high:
-        return 15000;
+        return AppConstants.networkTimeoutHigh;
       case entities.VideoQuality.best:
-        return 20000;
+        return AppConstants.networkTimeoutBest;
       case entities.VideoQuality.auto:
-        return 12000;
+        return AppConstants.networkTimeoutAuto;
     }
   }
 
@@ -632,14 +666,7 @@ class _PlayerPageState extends State<PlayerPage> {
           final quality = _getVideoQualityFromSettings(context);
           _initializePlayer(_videoUrl!, quality: quality).then((_) {
             if (mounted && channel != null) {
-              try {
-                context.read<ChannelBloc>().add(SelectChannelEvent(channel));
-              } catch (e) {
-                developer.log(
-                  'ChannelBloc еще не доступен для сохранения канала: $e',
-                  name: 'PlayerPage',
-                );
-              }
+              _notifyChannelSelected(channel);
             }
           });
         }
@@ -684,7 +711,7 @@ class _PlayerPageState extends State<PlayerPage> {
             Center(child: Video(controller: _videoController!)),
           if (_isInitializing && _currentChannel != null)
             Container(
-              color: Colors.black87,
+              color: AppColors.black87,
               child: Center(
                 child: SingleChildScrollView(
                   child: Padding(
@@ -708,7 +735,7 @@ class _PlayerPageState extends State<PlayerPage> {
                                 placeholder: (context, url) => Container(
                                   width: 100,
                                   height: 100,
-                                  color: Colors.grey[800],
+                                  color: AppColors.grey800,
                                   child: const Center(
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
@@ -718,11 +745,11 @@ class _PlayerPageState extends State<PlayerPage> {
                                 errorWidget: (context, url, error) => Container(
                                   width: 100,
                                   height: 100,
-                                  color: Colors.grey[800],
+                                  color: AppColors.grey800,
                                   child: const Icon(
                                     Icons.tv,
                                     size: 40,
-                                    color: Colors.white70,
+                                    color: AppColors.white70,
                                   ),
                                 ),
                               ),
@@ -741,14 +768,14 @@ class _PlayerPageState extends State<PlayerPage> {
                               child: const Icon(
                                 Icons.tv,
                                 size: 40,
-                                color: Colors.white70,
+                                color: AppColors.white70,
                               ),
                             ),
                           ),
                         Text(
                           _currentChannel!.name,
                           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                color: Colors.white,
+                                color: AppColors.white,
                                 fontWeight: FontWeight.bold,
                               ),
                           textAlign: TextAlign.center,
@@ -757,13 +784,13 @@ class _PlayerPageState extends State<PlayerPage> {
                         ),
                         const SizedBox(height: 12),
                         const CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.white),
                         ),
                         const SizedBox(height: 12),
                         Text(
                           'Загрузка...',
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Colors.white70,
+                                color: AppColors.white70,
                               ),
                         ),
                       ],
@@ -774,7 +801,7 @@ class _PlayerPageState extends State<PlayerPage> {
             )
           else if (_isInitializing)
             Container(
-              color: Colors.black54,
+              color: AppColors.black54,
               child: const Center(child: CircularProgressIndicator()),
             ),
         ],
@@ -881,13 +908,7 @@ class _PlayerPageState extends State<PlayerPage> {
       }
       final media = Media(
         url,
-        httpHeaders: {
-          'Connection': 'keep-alive',
-          'Accept': '*/*',
-          'User-Agent': 'IPTVCA/1.0',
-          'Accept-Encoding': 'identity',
-          'Accept-Language': '*',
-        },
+        httpHeaders: AppConstants.httpHeaders,
         extras: {
           'channel': _currentChannel?.name ?? 'Unknown',
           'quality': videoQuality.toString(),
@@ -917,6 +938,29 @@ class _PlayerPageState extends State<PlayerPage> {
     }
   }
 
+  ChannelBloc? _getChannelBloc() {
+    if (_channelBloc != null) {
+      return _channelBloc;
+    }
+    try {
+      _channelBloc = context.read<ChannelBloc>();
+      return _channelBloc;
+    } catch (e) {
+      developer.log(
+        'ChannelBloc еще не доступен: $e',
+        name: 'PlayerPage',
+      );
+      return null;
+    }
+  }
+
+  void _notifyChannelSelected(Channel channel) {
+    final bloc = _getChannelBloc();
+    if (bloc != null) {
+      bloc.add(SelectChannelEvent(channel));
+    }
+  }
+
   Future<void> _switchChannel(Channel channel) async {
     final player = _player;
     if (player == null || _videoController == null) {
@@ -926,7 +970,7 @@ class _PlayerPageState extends State<PlayerPage> {
         _localIsFavorite = null;
         _errorMessage = null;
       });
-      context.read<ChannelBloc>().add(SelectChannelEvent(channel));
+      _notifyChannelSelected(channel);
       final quality = _getVideoQualityFromSettings(context);
       await _initializePlayer(channel.url, quality: quality);
       return;
@@ -976,7 +1020,7 @@ class _PlayerPageState extends State<PlayerPage> {
           setState(() {
             _isInitializing = false;
           });
-          context.read<ChannelBloc>().add(SelectChannelEvent(channel));
+          _notifyChannelSelected(channel);
         }
       } else {
         developer.log(
@@ -1030,7 +1074,7 @@ class _PlayerPageState extends State<PlayerPage> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                  const Icon(Icons.error_outline, size: 64, color: AppColors.errorIcon),
                   const SizedBox(height: 24),
                   Text(
                     'Ошибка воспроизведения',
@@ -1079,6 +1123,7 @@ class _PlayerPageState extends State<PlayerPage> {
           create: (context) {
             final bloc = InjectionContainer.instance.createChannelBloc();
             bloc.add(const LoadChannelsEvent());
+            _channelBloc = bloc;
             return bloc;
           },
         ),
@@ -1088,6 +1133,16 @@ class _PlayerPageState extends State<PlayerPage> {
       ],
       child: BlocBuilder<ChannelBloc, ChannelState>(
         builder: (context, state) {
+          if (_channelBloc == null) {
+            try {
+              _channelBloc = context.read<ChannelBloc>();
+            } catch (e) {
+              developer.log(
+                'ChannelBloc еще не доступен: $e',
+                name: 'PlayerPage',
+              );
+            }
+          }
           return _buildPlayerScaffold();
         },
       ),

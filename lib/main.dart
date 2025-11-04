@@ -5,6 +5,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:iptvca/core/constants/app_constants.dart';
 import 'package:iptvca/core/di/injection_container.dart';
+import 'package:iptvca/core/theme/app_colors.dart';
 import 'package:iptvca/core/theme/app_theme.dart';
 import 'package:iptvca/core/theme/theme_extension.dart';
 import 'package:iptvca/presentation/bloc/settings/settings_bloc.dart';
@@ -36,7 +37,7 @@ void main() async {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                  const Icon(Icons.error_outline, size: 64, color: AppColors.errorIcon),
                   const SizedBox(height: 24),
                   const Text(
                     'Ошибка инициализации приложения',

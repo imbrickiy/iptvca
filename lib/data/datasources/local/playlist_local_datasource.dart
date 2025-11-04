@@ -1,5 +1,6 @@
 
 import 'package:flutter/foundation.dart';
+import 'package:iptvca/core/constants/app_constants.dart';
 import 'package:iptvca/core/errors/failures.dart';
 import 'package:iptvca/core/storage/storage_interface.dart';
 import 'package:iptvca/data/models/playlist_model.dart';
@@ -8,7 +9,7 @@ import 'dart:convert';
 abstract class PlaylistLocalDataSource {
   Future<List<PlaylistModel>> getPlaylists();
   Future<void> savePlaylist(PlaylistModel playlist);
-  Future<void> deletePlaylist(String playlistId);
+  Future<void> deletePlaylist(String playlistId, {List<PlaylistModel>? playlists});
   Future<PlaylistModel?> getPlaylistById(String playlistId);
 }
 
@@ -16,12 +17,11 @@ class PlaylistLocalDataSourceImpl implements PlaylistLocalDataSource {
   PlaylistLocalDataSourceImpl(this._storage);
 
   final StorageInterface _storage;
-  static const String _playlistsKey = 'playlists';
 
   @override
   Future<List<PlaylistModel>> getPlaylists() async {
     try {
-      final jsonString = await _storage.getString(_playlistsKey);
+      final jsonString = await _storage.getString(AppConstants.playlistsKey);
       if (jsonString == null) {
         return [];
       }
@@ -49,21 +49,21 @@ class PlaylistLocalDataSourceImpl implements PlaylistLocalDataSource {
 
       final jsonList = playlists.map((p) => p.toJson()).toList();
       final jsonString = await compute(_encodePlaylistsJsonCompute, jsonList);
-      await _storage.setString(_playlistsKey, jsonString);
+      await _storage.setString(AppConstants.playlistsKey, jsonString);
     } catch (e) {
       throw CacheFailure(message: 'Ошибка сохранения плейлиста: $e');
     }
   }
 
   @override
-  Future<void> deletePlaylist(String playlistId) async {
+  Future<void> deletePlaylist(String playlistId, {List<PlaylistModel>? playlists}) async {
     try {
-      final playlists = await getPlaylists();
-      playlists.removeWhere((p) => p.id == playlistId);
+      final playlistsList = playlists ?? await getPlaylists();
+      playlistsList.removeWhere((p) => p.id == playlistId);
 
-      final jsonList = playlists.map((p) => p.toJson()).toList();
+      final jsonList = playlistsList.map((p) => p.toJson()).toList();
       final jsonString = await compute(_encodePlaylistsJsonCompute, jsonList);
-      await _storage.setString(_playlistsKey, jsonString);
+      await _storage.setString(AppConstants.playlistsKey, jsonString);
     } catch (e) {
       throw CacheFailure(message: 'Ошибка удаления плейлиста: $e');
     }

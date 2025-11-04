@@ -1,13 +1,11 @@
 import 'dart:developer' as developer;
+import 'package:iptvca/core/constants/app_constants.dart';
 import 'package:iptvca/core/storage/storage_interface.dart';
 
 /// Универсальный сервис для кэширования сетевых запросов.
 class NetworkCacheService {
   NetworkCacheService(this._storage);
   final StorageInterface? _storage;
-  static const String _cachePrefix = 'network_cache_';
-  static const String _timestampPrefix = 'network_cache_timestamp_';
-  static const Duration _defaultCacheValidity = Duration(hours: 24);
 
   /// Получает данные из кэша по ключу.
   ///
@@ -19,12 +17,12 @@ class NetworkCacheService {
     final storage = _storage;
     if (storage == null) return null;
     try {
-      final timestampKey = _timestampPrefix + key;
+      final timestampKey = AppConstants.networkCacheTimestampPrefix + key;
       final timestampStr = await storage.getString(timestampKey);
       if (timestampStr == null) return null;
       final timestamp = DateTime.parse(timestampStr);
       final now = DateTime.now();
-      final validity = cacheValidity ?? _defaultCacheValidity;
+      final validity = cacheValidity ?? AppConstants.networkCacheValidityDuration;
       if (now.difference(timestamp) > validity) {
         developer.log(
           'Кэш устарел для ключа: $key',
@@ -32,7 +30,7 @@ class NetworkCacheService {
         );
         return null;
       }
-      final cacheKey = _cachePrefix + key;
+      final cacheKey = AppConstants.networkCachePrefix + key;
       final cachedData = await storage.getString(cacheKey);
       if (cachedData != null) {
         developer.log(
@@ -58,8 +56,8 @@ class NetworkCacheService {
     final storage = _storage;
     if (storage == null) return;
     try {
-      final cacheKey = _cachePrefix + key;
-      final timestampKey = _timestampPrefix + key;
+      final cacheKey = AppConstants.networkCachePrefix + key;
+      final timestampKey = AppConstants.networkCacheTimestampPrefix + key;
       await storage.setString(cacheKey, data);
       await storage.setString(
         timestampKey,
@@ -82,8 +80,8 @@ class NetworkCacheService {
     final storage = _storage;
     if (storage == null) return;
     try {
-      final cacheKey = _cachePrefix + key;
-      final timestampKey = _timestampPrefix + key;
+      final cacheKey = AppConstants.networkCachePrefix + key;
+      final timestampKey = AppConstants.networkCacheTimestampPrefix + key;
       await storage.remove(cacheKey);
       await storage.remove(timestampKey);
       developer.log(

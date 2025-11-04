@@ -1,7 +1,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:iptvca/core/constants/app_constants.dart';
 import 'package:iptvca/core/di/injection_container.dart';
+import 'package:iptvca/core/theme/app_colors.dart';
 import 'package:iptvca/core/utils/debounce.dart';
 import 'package:iptvca/presentation/bloc/channel/channel_bloc.dart';
 import 'package:iptvca/presentation/bloc/channel/channel_event.dart';
@@ -62,8 +64,8 @@ class _GroupsScrollWidgetState extends State<_GroupsScrollWidget> {
   void _scrollLeft() {
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
-        (_scrollController.offset - 200).clamp(0.0, _scrollController.position.maxScrollExtent),
-        duration: const Duration(milliseconds: 300),
+        (_scrollController.offset - AppConstants.channelsPageScrollBarScrollAmount).clamp(0.0, _scrollController.position.maxScrollExtent),
+        duration: AppConstants.animationDuration,
         curve: Curves.easeOut,
       );
     }
@@ -72,8 +74,8 @@ class _GroupsScrollWidgetState extends State<_GroupsScrollWidget> {
   void _scrollRight() {
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
-        (_scrollController.offset + 200).clamp(0.0, _scrollController.position.maxScrollExtent),
-        duration: const Duration(milliseconds: 300),
+        (_scrollController.offset + AppConstants.channelsPageScrollBarScrollAmount).clamp(0.0, _scrollController.position.maxScrollExtent),
+        duration: AppConstants.animationDuration,
         curve: Curves.easeOut,
       );
     }
@@ -146,7 +148,7 @@ class _ChannelsPageState extends State<ChannelsPage> {
   @override
   void initState() {
     super.initState();
-    _debounce = Debounce(const Duration(milliseconds: 300));
+    _debounce = Debounce(AppConstants.searchDebounceDuration);
   }
 
   @override
@@ -189,7 +191,7 @@ class _ChannelsPageState extends State<ChannelsPage> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.tv_off, size: 64, color: Colors.grey),
+                        const Icon(Icons.tv_off, size: 64, color: AppColors.grey),
                         const SizedBox(height: 24),
                         Text(
                           'Нет доступных каналов',
@@ -242,7 +244,7 @@ class _ChannelsPageState extends State<ChannelsPage> {
                                 ? Icons.favorite
                                 : Icons.favorite_border,
                           ),
-                          color: state.showFavoritesOnly ? Colors.red : null,
+                          color: state.showFavoritesOnly ? AppColors.favorite : null,
                           tooltip: state.showFavoritesOnly
                               ? 'Показать все каналы'
                               : 'Показать только избранные',
@@ -266,7 +268,7 @@ class _ChannelsPageState extends State<ChannelsPage> {
                                 const Icon(
                                   Icons.search_off,
                                   size: 64,
-                                  color: Colors.grey,
+                                  color: AppColors.grey,
                                 ),
                                 const SizedBox(height: 16),
                                 Text(
@@ -308,7 +310,7 @@ class _ChannelsPageState extends State<ChannelsPage> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       const Icon(Icons.error_outline,
-                          size: 64, color: Colors.red),
+                          size: 64, color: AppColors.errorIcon),
                       const SizedBox(height: 24),
                       Text(
                         'Ошибка загрузки каналов',

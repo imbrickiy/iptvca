@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:xml/xml.dart' as xml;
+import 'package:iptvca/core/constants/app_constants.dart';
 import 'package:iptvca/core/storage/storage_interface.dart';
 import 'package:iptvca/core/services/network_cache_service.dart';
 
@@ -12,10 +13,6 @@ class EpgDataSource {
   EpgDataSource(this._storage, this._cacheService);
   final StorageInterface? _storage;
   final NetworkCacheService? _cacheService;
-  static const String _defaultEpgUrl = 'http://epg.one/epg.xml.gz';
-  static const String _cacheKey = 'epg_cache';
-  static const String _cacheTimestampKey = 'epg_cache_timestamp';
-  static const Duration _cacheValidityDuration = Duration(hours: 24);
 
   /// Получает EPG данные по указанному URL.
   ///
@@ -38,7 +35,7 @@ class EpgDataSource {
     bool forceRefresh = false,
     void Function(double progress)? onProgress,
   }) async {
-    final epgUrl = url ?? _defaultEpgUrl;
+    final epgUrl = url ?? AppConstants.defaultEpgUrl;
     try {
       if (!forceRefresh && _storage != null) {
         final cachedData = await _getCachedEpg();
@@ -97,8 +94,8 @@ class EpgDataSource {
     final cacheService = _cacheService;
     if (cacheService != null) {
       final cachedJson = await cacheService.getCachedData(
-        _cacheKey,
-        cacheValidity: _cacheValidityDuration,
+        AppConstants.epgCacheKey,
+        cacheValidity: AppConstants.epgCacheValidityDuration,
       );
       if (cachedJson != null) {
         try {
@@ -112,14 +109,14 @@ class EpgDataSource {
     final storage = _storage;
     if (storage == null) return null;
     try {
-      final timestampStr = await storage.getString(_cacheTimestampKey);
+      final timestampStr = await storage.getString(AppConstants.epgCacheTimestampKey);
       if (timestampStr == null) return null;
       final timestamp = DateTime.parse(timestampStr);
       final now = DateTime.now();
-      if (now.difference(timestamp) > _cacheValidityDuration) {
+      if (now.difference(timestamp) > AppConstants.epgCacheValidityDuration) {
         return null;
       }
-      final cachedJson = await storage.getString(_cacheKey);
+      final cachedJson = await storage.getString(AppConstants.epgCacheKey);
       if (cachedJson == null) return null;
       final cachedData = await compute(_decodeJsonEpgCacheCompute, cachedJson);
       return cachedData;
@@ -134,13 +131,13 @@ class EpgDataSource {
       final jsonString = json.encode(epgData);
       final cacheService = _cacheService;
       if (cacheService != null) {
-        await cacheService.saveCachedData(_cacheKey, jsonString);
+        await cacheService.saveCachedData(AppConstants.epgCacheKey, jsonString);
         developer.log('EPG сохранен в кэш через NetworkCacheService', name: 'EpgDataSource');
       } else {
         final storage = _storage;
         if (storage == null) return;
-        await storage.setString(_cacheKey, jsonString);
-        await storage.setString(_cacheTimestampKey, DateTime.now().toIso8601String());
+        await storage.setString(AppConstants.epgCacheKey, jsonString);
+        await storage.setString(AppConstants.epgCacheTimestampKey, DateTime.now().toIso8601String());
         developer.log('EPG сохранен в кэш', name: 'EpgDataSource');
       }
     } catch (e) {

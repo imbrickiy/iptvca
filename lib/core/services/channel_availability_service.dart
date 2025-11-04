@@ -1,5 +1,6 @@
 import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
+import 'package:iptvca/core/constants/app_constants.dart';
 import 'package:iptvca/domain/entities/channel.dart';
 
 enum ChannelAvailabilityStatus {
@@ -28,8 +29,6 @@ class ChannelAvailabilityService {
   ChannelAvailabilityService(this._httpClient);
 
   final http.Client _httpClient;
-  static const Duration _checkTimeout = Duration(seconds: 5);
-  static const Duration _cacheDuration = Duration(minutes: 30);
   final Map<String, ChannelAvailabilityResult> _cache = {};
   final Map<String, DateTime> _cacheTimestamps = {};
 
@@ -81,7 +80,7 @@ class ChannelAvailabilityService {
 
   Future<List<ChannelAvailabilityResult>> checkChannels(
     List<Channel> channels, {
-    int maxConcurrent = 5,
+    int maxConcurrent = AppConstants.maxConcurrentChannelChecks,
   }) async {
     final results = <ChannelAvailabilityResult>[];
     for (var i = 0; i < channels.length; i += maxConcurrent) {
@@ -97,11 +96,11 @@ class ChannelAvailabilityService {
   Future<bool> _checkUrlAvailability(Uri uri) async {
     try {
       final request = http.Request('HEAD', uri);
-      request.headers['User-Agent'] = 'IPTVCA/1.0';
+      request.headers['User-Agent'] = AppConstants.userAgent;
       request.headers['Accept'] = '*/*';
       final streamedResponse = await _httpClient
           .send(request)
-          .timeout(_checkTimeout);
+          .timeout(AppConstants.channelCheckTimeout);
       final statusCode = streamedResponse.statusCode;
       await streamedResponse.stream.drain();
       if (statusCode >= 200 && statusCode < 400) {
@@ -122,12 +121,12 @@ class ChannelAvailabilityService {
   Future<bool> _checkUrlAvailabilityWithGet(Uri uri) async {
     try {
       final request = http.Request('GET', uri);
-      request.headers['User-Agent'] = 'IPTVCA/1.0';
+      request.headers['User-Agent'] = AppConstants.userAgent;
       request.headers['Accept'] = '*/*';
-      request.headers['Range'] = 'bytes=0-1024';
+      request.headers['Range'] = 'bytes=0-${AppConstants.channelCheckRangeBytes}';
       final streamedResponse = await _httpClient
           .send(request)
-          .timeout(_checkTimeout);
+          .timeout(AppConstants.channelCheckTimeout);
       final statusCode = streamedResponse.statusCode;
       await streamedResponse.stream.drain();
       return statusCode >= 200 && statusCode < 400;
@@ -142,7 +141,7 @@ class ChannelAvailabilityService {
       return null;
     }
     final age = DateTime.now().difference(timestamp);
-    if (age > _cacheDuration) {
+    if (age > AppConstants.channelCacheDuration) {
       _cache.remove(cacheKey);
       _cacheTimestamps.remove(cacheKey);
       return null;

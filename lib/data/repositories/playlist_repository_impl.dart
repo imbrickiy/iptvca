@@ -26,17 +26,7 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
     try {
       final channels = await _remoteDataSource.parsePlaylistFromUrl(url);
       if (channels.isNotEmpty && _channelsCacheService != null) {
-        _channelsCacheService.saveChannels(channels).then((_) {
-          developer.log(
-            'Сохранено ${channels.length} каналов в кэш после парсинга из URL',
-            name: 'PlaylistRepository',
-          );
-        }).catchError((e) {
-          developer.log(
-            'Ошибка сохранения каналов в кэш: $e',
-            name: 'PlaylistRepository',
-          );
-        });
+        _updateChannelsCacheAfterLoad(channels);
       }
       return Right(channels);
     } on NetworkFailure catch (e) {
@@ -48,6 +38,31 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
     }
   }
 
+  void _updateChannelsCacheAfterLoad(List<Channel> newChannels) {
+    Future.microtask(() async {
+      try {
+        final allPlaylists = await _localDataSource.getPlaylists();
+        final allChannels = <Channel>[];
+        for (final playlist in allPlaylists) {
+          if (playlist.isActive) {
+            allChannels.addAll(playlist.channels);
+          }
+        }
+        allChannels.addAll(newChannels);
+        await _channelsCacheService!.saveChannels(allChannels);
+        developer.log(
+          'Кэш каналов обновлен после загрузки: ${newChannels.length} новых каналов, всего: ${allChannels.length}',
+          name: 'PlaylistRepository',
+        );
+      } catch (e) {
+        developer.log(
+          'Ошибка обновления кэша каналов после загрузки: $e',
+          name: 'PlaylistRepository',
+        );
+      }
+    });
+  }
+
   @override
   Future<Either<Failure, List<Channel>>> loadPlaylistFromFile(
     String filePath,
@@ -55,17 +70,7 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
     try {
       final channels = await _remoteDataSource.parsePlaylistFromFile(filePath);
       if (channels.isNotEmpty && _channelsCacheService != null) {
-        _channelsCacheService.saveChannels(channels).then((_) {
-          developer.log(
-            'Сохранено ${channels.length} каналов в кэш после парсинга из файла',
-            name: 'PlaylistRepository',
-          );
-        }).catchError((e) {
-          developer.log(
-            'Ошибка сохранения каналов в кэш: $e',
-            name: 'PlaylistRepository',
-          );
-        });
+        _updateChannelsCacheAfterLoad(channels);
       }
       return Right(channels);
     } on ValidationFailure catch (e) {
@@ -105,13 +110,53 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
   @override
   Future<Either<Failure, void>> deletePlaylist(String playlistId) async {
     try {
-      await _localDataSource.deletePlaylist(playlistId);
+      final playlists = await _localDataSource.getPlaylists();
+      playlists.firstWhere(
+        (p) => p.id == playlistId,
+        orElse: () => throw CacheFailure(message: 'Плейлист не найден'),
+      );
+      await _localDataSource.deletePlaylist(playlistId, playlists: playlists);
+      if (_channelsCacheService != null) {
+        _updateChannelsCacheAfterDeletion();
+      }
       return const Right(null);
     } on CacheFailure catch (e) {
       return Left(e);
     } catch (e) {
       return Left(CacheFailure(message: 'Ошибка удаления плейлиста: $e'));
     }
+  }
+
+  void _updateChannelsCacheAfterDeletion() {
+    Future.microtask(() async {
+      try {
+        final allPlaylists = await _localDataSource.getPlaylists();
+        final allChannels = <Channel>[];
+        for (final playlist in allPlaylists) {
+          if (playlist.isActive) {
+            allChannels.addAll(playlist.channels);
+          }
+        }
+        if (allChannels.isNotEmpty) {
+          await _channelsCacheService!.saveChannels(allChannels);
+          developer.log(
+            'Кэш каналов обновлен после удаления плейлиста',
+            name: 'PlaylistRepository',
+          );
+        } else {
+          await _channelsCacheService!.clearCache();
+          developer.log(
+            'Кэш каналов очищен, так как активных плейлистов не осталось',
+            name: 'PlaylistRepository',
+          );
+        }
+      } catch (e) {
+        developer.log(
+          'Ошибка обновления кэша каналов после удаления плейлиста: $e',
+          name: 'PlaylistRepository',
+        );
+      }
+    });
   }
 
   @override

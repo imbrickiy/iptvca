@@ -3,21 +3,20 @@ import 'dart:developer' as developer;
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:iptvca/core/constants/app_constants.dart';
 import 'package:iptvca/data/models/channel_model.dart';
 import 'package:iptvca/domain/entities/channel.dart';
 
 class ChannelsCacheService {
-  static const String _cacheFileName = 'channels_cache.json';
-  static const String _metadataFileName = 'channels_cache_metadata.json';
 
   Future<File> _getCacheFile() async {
     final directory = await getApplicationDocumentsDirectory();
-    return File('${directory.path}/$_cacheFileName');
+    return File('${directory.path}/${AppConstants.channelsCacheFileName}');
   }
 
   Future<File> _getMetadataFile() async {
     final directory = await getApplicationDocumentsDirectory();
-    return File('${directory.path}/$_metadataFileName');
+    return File('${directory.path}/${AppConstants.channelsCacheMetadataFileName}');
   }
 
   Future<void> saveChannels(List<Channel> channels) async {

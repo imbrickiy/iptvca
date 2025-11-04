@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:iptvca/core/constants/app_constants.dart';
 import 'package:iptvca/core/di/injection_container.dart';
+import 'package:iptvca/core/theme/app_colors.dart';
 import 'package:iptvca/data/datasources/remote/epg_datasource.dart';
 import 'package:iptvca/domain/entities/channel.dart';
 
@@ -43,7 +45,7 @@ class _EpgProgramsDialogState extends State<EpgProgramsDialog> {
     }
     if (_epgData != null && !_isLoading) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        Future.delayed(const Duration(milliseconds: 300), () {
+        Future.delayed(AppConstants.animationDuration, () {
           if (mounted && _scrollController.hasClients) {
             _scrollToCurrentTime();
           }
@@ -82,7 +84,7 @@ class _EpgProgramsDialogState extends State<EpgProgramsDialog> {
           _progress = 1.0;
         });
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          Future.delayed(const Duration(milliseconds: 200), () {
+          Future.delayed(AppConstants.animationDurationShort, () {
             if (mounted) {
               _scrollToCurrentTime();
             }
@@ -215,7 +217,7 @@ class _EpgProgramsDialogState extends State<EpgProgramsDialog> {
           if (key?.currentContext != null) {
             Scrollable.ensureVisible(
               key!.currentContext!,
-              duration: const Duration(milliseconds: 500),
+              duration: AppConstants.animationDurationLong,
               curve: Curves.easeInOut,
               alignment: 0.1,
             );
@@ -306,7 +308,7 @@ class _EpgProgramsDialogState extends State<EpgProgramsDialog> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                      const Icon(Icons.error_outline, size: 64, color: AppColors.errorIcon),
                       const SizedBox(height: 16),
                       Text(
                         'Ошибка загрузки телепрограммы',
@@ -348,7 +350,7 @@ class _EpgProgramsDialogState extends State<EpgProgramsDialog> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.tv_off, size: 64, color: Colors.grey),
+            const Icon(Icons.tv_off, size: 64, color: AppColors.grey),
             const SizedBox(height: 16),
             Text(
               'Телепрограмма недоступна',

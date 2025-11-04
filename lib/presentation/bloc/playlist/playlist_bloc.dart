@@ -34,11 +34,15 @@ class PlaylistBloc extends Bloc<PlaylistEvent, PlaylistState> {
     Emitter<PlaylistState> emit,
   ) async {
     emit(const PlaylistLoading());
-    final result = await _getPlaylists();
-    result.fold(
-      (failure) => emit(PlaylistError(failure.message ?? 'Ошибка загрузки')),
-      (playlists) => emit(PlaylistLoaded(playlists)),
-    );
+    try {
+      final result = await _getPlaylists();
+      result.fold(
+        (failure) => emit(PlaylistError(failure.message ?? 'Ошибка загрузки')),
+        (playlists) => emit(PlaylistLoaded(playlists)),
+      );
+    } catch (e) {
+      emit(PlaylistError('Ошибка загрузки: $e'));
+    }
   }
 
   Future<void> _onLoadPlaylistFromUrl(
@@ -46,11 +50,15 @@ class PlaylistBloc extends Bloc<PlaylistEvent, PlaylistState> {
     Emitter<PlaylistState> emit,
   ) async {
     emit(const PlaylistLoading());
-    final result = await _loadPlaylistFromUrl(event.url);
-    result.fold(
-      (failure) => emit(PlaylistError(failure.message ?? 'Ошибка загрузки')),
-      (channels) => emit(ChannelsLoaded(channels)),
-    );
+    try {
+      final result = await _loadPlaylistFromUrl(event.url);
+      result.fold(
+        (failure) => emit(PlaylistError(failure.message ?? 'Ошибка загрузки')),
+        (channels) => emit(ChannelsLoaded(channels)),
+      );
+    } catch (e) {
+      emit(PlaylistError('Ошибка загрузки: $e'));
+    }
   }
 
   Future<void> _onLoadPlaylistFromFile(
@@ -58,41 +66,51 @@ class PlaylistBloc extends Bloc<PlaylistEvent, PlaylistState> {
     Emitter<PlaylistState> emit,
   ) async {
     emit(const PlaylistLoading());
-    final result = await _loadPlaylistFromFile(event.filePath);
-    result.fold(
-      (failure) => emit(PlaylistError(failure.message ?? 'Ошибка загрузки')),
-      (channels) => emit(ChannelsLoaded(channels)),
-    );
+    try {
+      final result = await _loadPlaylistFromFile(event.filePath);
+      result.fold(
+        (failure) => emit(PlaylistError(failure.message ?? 'Ошибка загрузки')),
+        (channels) => emit(ChannelsLoaded(channels)),
+      );
+    } catch (e) {
+      emit(PlaylistError('Ошибка загрузки: $e'));
+    }
   }
 
   Future<void> _onSavePlaylist(
     SavePlaylistEvent event,
     Emitter<PlaylistState> emit,
   ) async {
-    emit(const PlaylistLoading());
-    final result = await _savePlaylist(event.playlist);
-    result.fold(
-      (failure) => emit(PlaylistError(failure.message ?? 'Ошибка сохранения')),
-      (_) {
-        emit(const PlaylistSaved());
-        add(const LoadPlaylistsEvent());
-      },
-    );
+    try {
+      final result = await _savePlaylist(event.playlist);
+      result.fold(
+        (failure) => emit(PlaylistError(failure.message ?? 'Ошибка сохранения')),
+        (_) {
+          emit(const PlaylistSaved());
+          add(const LoadPlaylistsEvent());
+        },
+      );
+    } catch (e) {
+      emit(PlaylistError('Ошибка сохранения: $e'));
+    }
   }
 
   Future<void> _onDeletePlaylist(
     DeletePlaylistEvent event,
     Emitter<PlaylistState> emit,
   ) async {
-    emit(const PlaylistLoading());
-    final result = await _deletePlaylist(event.playlistId);
-    result.fold(
-      (failure) => emit(PlaylistError(failure.message ?? 'Ошибка удаления')),
-      (_) {
-        emit(const PlaylistDeleted());
-        add(const LoadPlaylistsEvent());
-      },
-    );
+    try {
+      final result = await _deletePlaylist(event.playlistId);
+      result.fold(
+        (failure) => emit(PlaylistError(failure.message ?? 'Ошибка удаления')),
+        (_) {
+          emit(const PlaylistDeleted());
+          add(const LoadPlaylistsEvent());
+        },
+      );
+    } catch (e) {
+      emit(PlaylistError('Ошибка удаления: $e'));
+    }
   }
 }
 

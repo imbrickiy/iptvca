@@ -1,6 +1,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:iptvca/core/theme/app_colors.dart';
 import 'package:iptvca/presentation/pages/settings_page.dart';
 
 class HomePage extends StatelessWidget {
@@ -117,7 +118,7 @@ class HomePage extends StatelessWidget {
                   padding: EdgeInsets.all(24.0),
                   child: Row(
                     children: [
-                      Icon(Icons.favorite, size: 48, color: Colors.red),
+                      Icon(Icons.favorite, size: 48, color: AppColors.favorite),
                       SizedBox(width: 16),
                       Expanded(
                         child: Column(

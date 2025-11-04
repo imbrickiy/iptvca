@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:iptvca/core/constants/app_constants.dart';
 
 /// Экран загрузки с анимацией логотипа.
 ///
@@ -24,12 +25,12 @@ class _SplashScreenState extends State<SplashScreen>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 1500),
+      duration: AppConstants.splashScreenAnimationDuration,
       vsync: this,
     );
     _fadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
+      begin: AppConstants.animationFadeBegin,
+      end: AppConstants.animationFadeEnd,
     ).animate(
       CurvedAnimation(
         parent: _controller,
@@ -37,8 +38,8 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
     _scaleAnimation = Tween<double>(
-      begin: 0.5,
-      end: 1.0,
+      begin: AppConstants.animationScaleBegin,
+      end: AppConstants.animationScaleEnd,
     ).animate(
       CurvedAnimation(
         parent: _controller,
@@ -46,7 +47,7 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
     _controller.forward();
-    _timer = Timer(const Duration(seconds: 5), () {
+    _timer = Timer(AppConstants.splashScreenTimeout, () {
       if (mounted) {
         context.go('/');
       }

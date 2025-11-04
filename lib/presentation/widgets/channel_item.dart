@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:iptvca/core/theme/app_colors.dart';
 import 'package:iptvca/domain/entities/channel.dart';
 import 'package:iptvca/presentation/bloc/channel/channel_bloc.dart';
 import 'package:iptvca/presentation/bloc/channel/channel_event.dart';
@@ -49,7 +50,7 @@ class _ChannelItemState extends State<ChannelItem> {
           trailing: IconButton(
             icon: Icon(
               isFavorite ? Icons.favorite : Icons.favorite_border,
-              color: isFavorite ? Colors.red : null,
+              color: isFavorite ? AppColors.favorite : null,
             ),
             onPressed: () {
               final newFavoriteStatus = !isFavorite;
