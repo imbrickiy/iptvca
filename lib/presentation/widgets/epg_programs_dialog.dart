@@ -101,26 +101,38 @@ class _EpgProgramsDialogState extends State<EpgProgramsDialog> {
 
   List<Map<String, dynamic>> _getChannelPrograms() {
     if (_epgData == null) return [];
-    final channels = _epgData!['channels'] as Map<String, dynamic>;
+    final channelsData = _epgData!['channels'];
+    if (channelsData is! Map<String, dynamic>) return [];
+    final channels = channelsData;
     List<dynamic>? programs;
     if (widget.channel.tvgId != null && widget.channel.tvgId!.isNotEmpty) {
-      programs = channels[widget.channel.tvgId] as List<dynamic>?;
+      final tvgPrograms = channels[widget.channel.tvgId];
+      if (tvgPrograms is List<dynamic>) {
+        programs = tvgPrograms;
+      }
     }
     if (programs == null && widget.channel.name.isNotEmpty) {
-      programs = channels[widget.channel.name] as List<dynamic>?;
+      final namePrograms = channels[widget.channel.name];
+      if (namePrograms is List<dynamic>) {
+        programs = namePrograms;
+      }
     }
     if (programs == null) {
       final channelNameLower = widget.channel.name.toLowerCase();
       for (final entry in channels.entries) {
         if (entry.key.toLowerCase().contains(channelNameLower) ||
             channelNameLower.contains(entry.key.toLowerCase())) {
-          programs = entry.value as List<dynamic>?;
-          break;
+          if (entry.value is List<dynamic>) {
+            programs = entry.value as List<dynamic>;
+            break;
+          }
         }
       }
     }
     if (programs == null) return [];
-    return programs.cast<Map<String, dynamic>>();
+    return programs
+        .whereType<Map<String, dynamic>>()
+        .toList();
   }
 
   Map<String, dynamic>? _getCurrentProgram() {

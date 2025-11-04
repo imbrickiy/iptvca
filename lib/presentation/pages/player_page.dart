@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -272,6 +273,7 @@ class _ChannelsGroupedListState extends State<_ChannelsGroupedList> {
     final groupedChannels = _cachedGroupedChannels!;
     final categories = _cachedCategories!;
     return ListView.builder(
+      cacheExtent: 500,
       itemCount: categories.length,
       itemBuilder: (context, index) {
         final category = categories[index];
@@ -284,6 +286,7 @@ class _ChannelsGroupedListState extends State<_ChannelsGroupedList> {
           subtitle: Text('${categoryChannels.length} каналов'),
           children: categoryChannels.map((channel) {
             return _ChannelDrawerItem(
+              key: ValueKey(channel.id),
               channel: channel,
               onChannelSelected: widget.onChannelSelected,
             );
@@ -296,6 +299,7 @@ class _ChannelsGroupedListState extends State<_ChannelsGroupedList> {
 
 class _ChannelDrawerItem extends StatefulWidget {
   const _ChannelDrawerItem({
+    super.key,
     required this.channel,
     required this.onChannelSelected,
   });
@@ -338,12 +342,10 @@ class _ChannelDrawerItemState extends State<_ChannelDrawerItem> {
         Channel currentChannel = widget.channel;
         bool isFavorite = widget.channel.isFavorite;
         if (blocState is ChannelsLoaded) {
-          final channelIndex = blocState.channels.indexWhere(
-            (c) => c.id == widget.channel.id,
-          );
-          if (channelIndex != -1) {
-            currentChannel = blocState.channels[channelIndex];
-            isFavorite = currentChannel.isFavorite;
+          final channel = blocState.channelsMap[widget.channel.id];
+          if (channel != null) {
+            currentChannel = channel;
+            isFavorite = channel.isFavorite;
           }
         }
         if (_localIsFavorite != null) {
@@ -525,6 +527,9 @@ class _PlayerPageState extends State<PlayerPage> {
   bool _isAlwaysOnTop = false;
   bool _hasInitializedFromExtra = false;
   bool _hasTriedToSaveChannel = false;
+  bool _hasFirstFrame = false;
+  StreamSubscription? _errorSubscription;
+  StreamSubscription? _blocSubscription;
 
   @override
   void initState() {
@@ -545,38 +550,42 @@ class _PlayerPageState extends State<PlayerPage> {
     if (_hasInitializedFromExtra) {
       return;
     }
-    final extra = GoRouterState.of(context).extra;
-    if (extra != null) {
-      Channel? channel;
-      String? url;
-      if (extra is Channel) {
-        channel = extra;
-        url = channel.url;
-      } else if (extra is String) {
-        url = extra;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _hasInitializedFromExtra) {
+        return;
       }
-      if (url != null && url.isNotEmpty && _videoUrl != url) {
-        _disposeController();
-        _videoUrl = url;
-        _currentChannel = channel;
-        _errorMessage = null;
-        _localIsFavorite = null;
-        _hasInitializedFromExtra = true;
-        _initializePlayer(_videoUrl!);
-        if (channel != null) {
-          Future.microtask(() {
-            try {
-              context.read<ChannelBloc>().add(SelectChannelEvent(channel!));
-            } catch (e) {
-              developer.log(
-                'ChannelBloc еще не доступен для сохранения канала: $e',
-                name: 'PlayerPage',
-              );
+      final extra = GoRouterState.of(context).extra;
+      if (extra != null) {
+        Channel? channel;
+        String? url;
+        if (extra is Channel) {
+          channel = extra;
+          url = channel.url;
+        } else if (extra is String) {
+          url = extra;
+        }
+        if (url != null && url.isNotEmpty && _videoUrl != url) {
+          _disposeController();
+          _videoUrl = url;
+          _currentChannel = channel;
+          _errorMessage = null;
+          _localIsFavorite = null;
+          _hasInitializedFromExtra = true;
+          _initializePlayer(_videoUrl!).then((_) {
+            if (mounted && channel != null) {
+              try {
+                context.read<ChannelBloc>().add(SelectChannelEvent(channel));
+              } catch (e) {
+                developer.log(
+                  'ChannelBloc еще не доступен для сохранения канала: $e',
+                  name: 'PlayerPage',
+                );
+              }
             }
           });
         }
       }
-    }
+    });
   }
 
   Future<void> _restoreLastChannel(ChannelBloc bloc) async {
@@ -589,9 +598,12 @@ class _PlayerPageState extends State<PlayerPage> {
           'Каналы еще не загружены, ожидание...',
           name: 'PlayerPage',
         );
-        bloc.stream.firstWhere((state) => state is ChannelsLoaded).then((_) {
-          if (mounted) {
+        _blocSubscription?.cancel();
+        _blocSubscription = bloc.stream.listen((state) {
+          if (state is ChannelsLoaded && mounted) {
             _restoreLastChannel(bloc);
+            _blocSubscription?.cancel();
+            _blocSubscription = null;
           }
         });
         return;
@@ -652,86 +664,95 @@ class _PlayerPageState extends State<PlayerPage> {
           : null,
       body: Stack(
         children: [
-          Center(child: Video(controller: _videoController!)),
-          if (_isInitializing && _currentChannel != null)
+          if (_videoController != null)
+            Center(child: Video(controller: _videoController!)),
+          if ((_isInitializing || !_hasFirstFrame) && _currentChannel != null)
             Container(
               color: Colors.black87,
               child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    if (_currentChannel!.logoUrl != null)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 24.0),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: CachedNetworkImage(
-                            imageUrl: _currentChannel!.logoUrl!,
-                            width: 120,
-                            height: 120,
-                            fit: BoxFit.cover,
-                            memCacheWidth: 240,
-                            memCacheHeight: 240,
-                            placeholder: (context, url) => Container(
-                              width: 120,
-                              height: 120,
-                              color: Colors.grey[800],
-                              child: const Center(
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_currentChannel!.logoUrl != null)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 16.0),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: CachedNetworkImage(
+                                imageUrl: _currentChannel!.logoUrl!,
+                                width: 100,
+                                height: 100,
+                                fit: BoxFit.cover,
+                                memCacheWidth: 200,
+                                memCacheHeight: 200,
+                                placeholder: (context, url) => Container(
+                                  width: 100,
+                                  height: 100,
+                                  color: Colors.grey[800],
+                                  child: const Center(
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                ),
+                                errorWidget: (context, url, error) => Container(
+                                  width: 100,
+                                  height: 100,
+                                  color: Colors.grey[800],
+                                  child: const Icon(
+                                    Icons.tv,
+                                    size: 40,
+                                    color: Colors.white70,
+                                  ),
                                 ),
                               ),
                             ),
-                            errorWidget: (context, url, error) => Container(
-                              width: 120,
-                              height: 120,
-                              color: Colors.grey[800],
+                          )
+                        else
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 16.0),
+                            child: Container(
+                              width: 100,
+                              height: 100,
+                              decoration: BoxDecoration(
+                                color: Colors.grey[800],
+                                borderRadius: BorderRadius.circular(16),
+                              ),
                               child: const Icon(
                                 Icons.tv,
-                                size: 48,
+                                size: 40,
                                 color: Colors.white70,
                               ),
                             ),
                           ),
+                        Text(
+                          _currentChannel!.name,
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      )
-                    else
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 24.0),
-                        child: Container(
-                          width: 120,
-                          height: 120,
-                          decoration: BoxDecoration(
-                            color: Colors.grey[800],
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: const Icon(
-                            Icons.tv,
-                            size: 48,
-                            color: Colors.white70,
-                          ),
+                        const SizedBox(height: 12),
+                        const CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                         ),
-                      ),
-                    Text(
-                      _currentChannel!.name,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                      textAlign: TextAlign.center,
+                        const SizedBox(height: 12),
+                        Text(
+                          'Загрузка...',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Colors.white70,
+                              ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 16),
-                    const CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Загрузка...',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.white70,
-                          ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             )
@@ -746,9 +767,14 @@ class _PlayerPageState extends State<PlayerPage> {
   }
 
   void _disposeController() {
+    _errorSubscription?.cancel();
+    _errorSubscription = null;
+    _blocSubscription?.cancel();
+    _blocSubscription = null;
     _player?.dispose();
     _videoController = null;
     _player = null;
+    _errorListenerSet = false;
   }
 
   Future<void> _syncAlwaysOnTopStatus() async {
@@ -795,6 +821,7 @@ class _PlayerPageState extends State<PlayerPage> {
     setState(() {
       _isInitializing = true;
       _errorMessage = null;
+      _hasFirstFrame = false;
     });
     try {
       developer.log('Инициализация плеера для URL: $url', name: 'PlayerPage');
@@ -813,7 +840,8 @@ class _PlayerPageState extends State<PlayerPage> {
           ),
         );
         if (!_errorListenerSet) {
-          _player!.stream.error.listen((error) {
+          _errorSubscription?.cancel();
+          _errorSubscription = _player!.stream.error.listen((error) {
             developer.log('Ошибка воспроизведения: $error', name: 'PlayerPage');
             if (mounted) {
               setState(() {
@@ -825,27 +853,31 @@ class _PlayerPageState extends State<PlayerPage> {
         }
       }
       final media = Media(url);
-      await _player!.open(media, play: false);
-      try {
-        await _player!.stream.buffering
-            .firstWhere((buffering) => !buffering)
-            .timeout(
-              const Duration(seconds: 10),
-              onTimeout: () {
-                developer.log('Таймаут ожидания буфера, начинаем воспроизведение', name: 'PlayerPage');
-                return false;
-              },
-            );
-      } catch (e) {
-        developer.log('Ошибка ожидания буфера: $e, начинаем воспроизведение', name: 'PlayerPage');
-      }
-      await _player!.play();
+      await _player!.open(media, play: true);
       developer.log('MediaKit Player создан и запущен', name: 'PlayerPage');
       if (mounted) {
         setState(() {
           _isInitializing = false;
         });
       }
+      _player!.stream.playing.firstWhere((playing) => playing).then((_) {
+        if (mounted && _player != null) {
+          Future.delayed(const Duration(milliseconds: 300), () {
+            if (mounted && _player != null) {
+              setState(() {
+                _hasFirstFrame = true;
+              });
+            }
+          });
+        }
+      }).catchError((e) {
+        developer.log('Ошибка ожидания первого кадра: $e', name: 'PlayerPage');
+        if (mounted) {
+          setState(() {
+            _hasFirstFrame = true;
+          });
+        }
+      });
     } catch (e, stackTrace) {
       developer.log(
         'Ошибка инициализации плеера: $e',
@@ -857,6 +889,7 @@ class _PlayerPageState extends State<PlayerPage> {
       if (mounted) {
         setState(() {
           _isInitializing = false;
+          _hasFirstFrame = false;
           _errorMessage = e.toString().replaceAll('Exception: ', '');
         });
       }
@@ -871,6 +904,7 @@ class _PlayerPageState extends State<PlayerPage> {
         _videoUrl = channel.url;
         _localIsFavorite = null;
         _errorMessage = null;
+        _hasFirstFrame = false;
       });
       context.read<ChannelBloc>().add(SelectChannelEvent(channel));
       await _initializePlayer(channel.url);
@@ -888,9 +922,9 @@ class _PlayerPageState extends State<PlayerPage> {
       _currentChannel = channel;
       _errorMessage = null;
       _isInitializing = true;
+      _hasFirstFrame = false;
       _localIsFavorite = null;
     });
-    context.read<ChannelBloc>().add(SelectChannelEvent(channel));
     try {
       developer.log(
         'Переключение канала на: ${channel.name}',
@@ -899,35 +933,43 @@ class _PlayerPageState extends State<PlayerPage> {
       final currentPlayer = _player;
       if (currentPlayer != null) {
         final media = Media(channel.url);
-        await currentPlayer.open(media, play: false);
-        try {
-          await currentPlayer.stream.buffering
-              .firstWhere((buffering) => !buffering)
-              .timeout(
-                const Duration(seconds: 5),
-                onTimeout: () {
-                  developer.log('Таймаут ожидания буфера при переключении, начинаем воспроизведение', name: 'PlayerPage');
-                  return false;
-                },
-              );
-        } catch (e) {
-          developer.log('Ошибка ожидания буфера при переключении: $e, начинаем воспроизведение', name: 'PlayerPage');
-        }
-        await currentPlayer.play();
+        await currentPlayer.open(media, play: true);
         developer.log(
           'Канал переключен и воспроизведение запущено',
           name: 'PlayerPage',
         );
+        currentPlayer.stream.playing.firstWhere((playing) => playing).then((_) {
+          if (mounted && currentPlayer == _player) {
+            Future.delayed(const Duration(milliseconds: 200), () {
+              if (mounted && _player != null) {
+                setState(() {
+                  _hasFirstFrame = true;
+                  _isInitializing = false;
+                });
+                context.read<ChannelBloc>().add(SelectChannelEvent(channel));
+              }
+            });
+          }
+        }).catchError((e) {
+          developer.log('Ошибка ожидания первого кадра при переключении: $e', name: 'PlayerPage');
+          if (mounted) {
+            setState(() {
+              _hasFirstFrame = true;
+              _isInitializing = false;
+            });
+            context.read<ChannelBloc>().add(SelectChannelEvent(channel));
+          }
+        });
       } else {
         developer.log(
           'Плеер стал null во время переключения',
           name: 'PlayerPage',
         );
-      }
-      if (mounted) {
-        setState(() {
-          _isInitializing = false;
-        });
+        if (mounted) {
+          setState(() {
+            _isInitializing = false;
+          });
+        }
       }
     } catch (e, stackTrace) {
       developer.log(
@@ -963,41 +1005,44 @@ class _PlayerPageState extends State<PlayerPage> {
       return Scaffold(
         appBar: AppBar(title: const Text('Плеер')),
         body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.error_outline, size: 64, color: Colors.red),
-                const SizedBox(height: 24),
-                Text(
-                  'Ошибка воспроизведения',
-                  style: Theme.of(context).textTheme.titleLarge,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  _errorMessage!,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 32),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    setState(() {
-                      _errorMessage = null;
-                    });
-                    _initializePlayer(_videoUrl!);
-                  },
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Повторить'),
-                ),
-                const SizedBox(height: 16),
-                TextButton(
-                  onPressed: () => context.pop(),
-                  child: const Text('Назад'),
-                ),
-              ],
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Ошибка воспроизведения',
+                    style: Theme.of(context).textTheme.titleLarge,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    _errorMessage!,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 32),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _errorMessage = null;
+                      });
+                      _initializePlayer(_videoUrl!);
+                    },
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Повторить'),
+                  ),
+                  const SizedBox(height: 16),
+                  TextButton(
+                    onPressed: () => context.pop(),
+                    child: const Text('Назад'),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

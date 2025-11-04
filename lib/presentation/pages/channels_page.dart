@@ -283,6 +283,7 @@ class _ChannelsPageState extends State<ChannelsPage> {
                             ),
                           )
                         : ListView.builder(
+                            cacheExtent: 500,
                             itemCount: state.filteredChannels.length,
                             itemBuilder: (context, index) {
                               final channel = state.filteredChannels[index];

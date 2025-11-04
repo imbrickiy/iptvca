@@ -101,24 +101,27 @@ class _PlaylistsPageViewState extends State<PlaylistsPageView> {
             }
 
             return ListView.builder(
+              cacheExtent: 500,
               itemCount: state.playlists.length,
               itemBuilder: (context, index) {
                 final playlist = state.playlists[index];
-                return ListTile(
-                  key: ValueKey(playlist.id),
-                  title: Text(playlist.name),
-                  subtitle: Text('${playlist.channels.length} каналов'),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete),
-                    onPressed: () {
-                      context.read<PlaylistBloc>().add(
-                            DeletePlaylistEvent(playlist.id),
-                          );
+                return RepaintBoundary(
+                  child: ListTile(
+                    key: ValueKey(playlist.id),
+                    title: Text(playlist.name),
+                    subtitle: Text('${playlist.channels.length} каналов'),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete),
+                      onPressed: () {
+                        context.read<PlaylistBloc>().add(
+                              DeletePlaylistEvent(playlist.id),
+                            );
+                      },
+                    ),
+                    onTap: () {
+                      context.push('/channels', extra: playlist.channels);
                     },
                   ),
-                  onTap: () {
-                    context.push('/channels', extra: playlist.channels);
-                  },
                 );
               },
             );

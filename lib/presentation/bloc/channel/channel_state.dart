@@ -17,8 +17,9 @@ class ChannelLoading extends ChannelState {
   const ChannelLoading();
 }
 
+// ignore: must_be_immutable
 class ChannelsLoaded extends ChannelState {
-  const ChannelsLoaded({
+  ChannelsLoaded({
     required this.channels,
     this.selectedChannel,
     this.searchQuery = '',
@@ -31,41 +32,69 @@ class ChannelsLoaded extends ChannelState {
   final String searchQuery;
   final String? filterGroup;
   final bool showFavoritesOnly;
+  List<Channel>? _cachedFilteredChannels;
+  String? _lastSearchQuery;
+  String? _lastFilterGroup;
+  bool? _lastShowFavoritesOnly;
+  Map<String, Channel>? _channelsMap;
 
   List<Channel> get filteredChannels {
+    if (_cachedFilteredChannels != null &&
+        _lastSearchQuery == searchQuery &&
+        _lastFilterGroup == filterGroup &&
+        _lastShowFavoritesOnly == showFavoritesOnly) {
+      return _cachedFilteredChannels!;
+    }
     var filtered = channels;
-
     if (showFavoritesOnly) {
       filtered = filtered.where((channel) => channel.isFavorite).toList();
     }
-
     if (searchQuery.isNotEmpty) {
+      final queryLower = searchQuery.toLowerCase();
       filtered = filtered
           .where(
-            (channel) => channel.name.toLowerCase().contains(
-                  searchQuery.toLowerCase(),
-                ),
+            (channel) => channel.name.toLowerCase().contains(queryLower),
           )
           .toList();
     }
-
     if (filterGroup != null && filterGroup!.isNotEmpty) {
       filtered = filtered
           .where((channel) => channel.groupTitle == filterGroup)
           .toList();
     }
-
+    _cachedFilteredChannels = filtered;
+    _lastSearchQuery = searchQuery;
+    _lastFilterGroup = filterGroup;
+    _lastShowFavoritesOnly = showFavoritesOnly;
+    _channelsMap = null;
+    _cachedAvailableGroups = null;
     return filtered;
   }
 
+  Map<String, Channel> get channelsMap {
+    if (_channelsMap != null) {
+      return _channelsMap!;
+    }
+    _channelsMap = {
+      for (final channel in channels) channel.id: channel,
+    };
+    return _channelsMap!;
+  }
+
+  List<String>? _cachedAvailableGroups;
+
   List<String> get availableGroups {
-    return channels
+    if (_cachedAvailableGroups != null) {
+      return _cachedAvailableGroups!;
+    }
+    final groups = channels
         .map((channel) => channel.groupTitle)
-        .where((group) => group != null)
+        .whereType<String>()
         .toSet()
         .toList()
-        .cast<String>()
-        ..sort();
+      ..sort();
+    _cachedAvailableGroups = groups;
+    return groups;
   }
 
   @override
@@ -101,4 +130,5 @@ class ChannelError extends ChannelState {
   @override
   List<Object?> get props => [message];
 }
+
 

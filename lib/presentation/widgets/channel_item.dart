@@ -27,14 +27,12 @@ class _ChannelItemState extends State<ChannelItem> {
         child: BlocBuilder<ChannelBloc, ChannelState>(
         buildWhen: (previous, current) {
           if (previous is ChannelsLoaded && current is ChannelsLoaded) {
-            final prevChannelIndex = previous.channels.indexWhere((c) => c.id == widget.channel.id);
-            final currChannelIndex = current.channels.indexWhere((c) => c.id == widget.channel.id);
-            if (prevChannelIndex == -1 && currChannelIndex == -1) {
+            final prevChannel = previous.channelsMap[widget.channel.id];
+            final currChannel = current.channelsMap[widget.channel.id];
+            if (prevChannel == null && currChannel == null) {
               return false;
             }
-            if (prevChannelIndex != -1 && currChannelIndex != -1) {
-              final prevChannel = previous.channels[prevChannelIndex];
-              final currChannel = current.channels[currChannelIndex];
+            if (prevChannel != null && currChannel != null) {
               if (prevChannel.isFavorite != currChannel.isFavorite) {
                 _localIsFavorite = null;
                 return true;
@@ -47,10 +45,10 @@ class _ChannelItemState extends State<ChannelItem> {
           Channel currentChannel = widget.channel;
           bool isFavorite = widget.channel.isFavorite;
           if (state is ChannelsLoaded) {
-            final channelIndex = state.channels.indexWhere((c) => c.id == widget.channel.id);
-            if (channelIndex != -1) {
-              currentChannel = state.channels[channelIndex];
-              isFavorite = currentChannel.isFavorite;
+            final channel = state.channelsMap[widget.channel.id];
+            if (channel != null) {
+              currentChannel = channel;
+              isFavorite = channel.isFavorite;
             }
           }
           if (_localIsFavorite != null) {
