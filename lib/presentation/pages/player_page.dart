@@ -529,55 +529,53 @@ class _PlayerPageState extends State<PlayerPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   bool _isAlwaysOnTop = false;
   bool _hasInitializedFromExtra = false;
-  bool _hasTriedToSaveChannel = false;
-  bool _hasFirstFrame = false;
   StreamSubscription? _errorSubscription;
-  StreamSubscription? _blocSubscription;
 
   int _getBufferSizeForQuality(entities.VideoQuality quality) {
     switch (quality) {
       case entities.VideoQuality.low:
-        return 1024 * 1024 * 5;
+        return 1024 * 1024 * 3;
       case entities.VideoQuality.medium:
-        return 1024 * 1024 * 8;
+        return 1024 * 1024 * 5;
       case entities.VideoQuality.high:
-        return 1024 * 1024 * 12;
+        return 1024 * 1024 * 8;
       case entities.VideoQuality.best:
-        return 1024 * 1024 * 16;
+        return 1024 * 1024 * 12;
       case entities.VideoQuality.auto:
-        return 1024 * 1024 * 10;
+        return 1024 * 1024 * 5;
+    }
+  }
+
+  int _getInitialBufferSize(entities.VideoQuality quality) {
+    switch (quality) {
+      case entities.VideoQuality.low:
+        return 512 * 1024;
+      case entities.VideoQuality.medium:
+        return 1024 * 1024;
+      case entities.VideoQuality.high:
+        return 2 * 1024 * 1024;
+      case entities.VideoQuality.best:
+        return 3 * 1024 * 1024;
+      case entities.VideoQuality.auto:
+        return 1024 * 1024;
     }
   }
 
   int _getNetworkTimeoutForQuality(entities.VideoQuality quality) {
     switch (quality) {
       case entities.VideoQuality.low:
-        return 5000;
-      case entities.VideoQuality.medium:
         return 8000;
-      case entities.VideoQuality.high:
-        return 12000;
-      case entities.VideoQuality.best:
-        return 15000;
-      case entities.VideoQuality.auto:
+      case entities.VideoQuality.medium:
         return 10000;
+      case entities.VideoQuality.high:
+        return 15000;
+      case entities.VideoQuality.best:
+        return 20000;
+      case entities.VideoQuality.auto:
+        return 12000;
     }
   }
 
-  Map<String, String> _getNetworkOptionsForQuality(entities.VideoQuality quality) {
-    final bufferSizeMB = _getBufferSizeForQuality(quality) ~/ (1024 * 1024);
-    final options = <String, String>{
-      'network-timeout': '${_getNetworkTimeoutForQuality(quality) ~/ 1000}',
-      'cache-secs': '${bufferSizeMB * 2}',
-      'demuxer-max-bytes': '${_getBufferSizeForQuality(quality) * 2}',
-      'demuxer-max-back-bytes': '${_getBufferSizeForQuality(quality)}',
-    };
-    if (quality == entities.VideoQuality.best || quality == entities.VideoQuality.high) {
-      options['stream-buffer-size'] = '${_getBufferSizeForQuality(quality)}';
-      options['http-header-fields'] = 'Connection: keep-alive\r\nAccept: */*';
-    }
-    return options;
-  }
 
   entities.VideoQuality _getVideoQualityFromSettings(BuildContext context) {
     try {
@@ -649,50 +647,6 @@ class _PlayerPageState extends State<PlayerPage> {
     });
   }
 
-  Future<void> _restoreLastChannel(ChannelBloc bloc) async {
-    if (_hasInitializedFromExtra || _currentChannel != null) {
-      return;
-    }
-    try {
-      if (bloc.state is! ChannelsLoaded) {
-        developer.log(
-          'Каналы еще не загружены, ожидание...',
-          name: 'PlayerPage',
-        );
-        _blocSubscription?.cancel();
-        _blocSubscription = bloc.stream.listen((state) {
-          if (state is ChannelsLoaded && mounted) {
-            _restoreLastChannel(bloc);
-            _blocSubscription?.cancel();
-            _blocSubscription = null;
-          }
-        });
-        return;
-      }
-      final lastChannel = await bloc.getLastChannel();
-      if (lastChannel != null && mounted) {
-        developer.log(
-          'Восстановление последнего канала: ${lastChannel.name}',
-          name: 'PlayerPage',
-        );
-        _disposeController();
-        _videoUrl = lastChannel.url;
-        _currentChannel = lastChannel;
-        _errorMessage = null;
-        _localIsFavorite = null;
-        _hasInitializedFromExtra = true;
-        final quality = _getVideoQualityFromSettings(context);
-        _initializePlayer(_videoUrl!, quality: quality);
-      }
-    } catch (e, stackTrace) {
-      developer.log(
-        'Ошибка восстановления последнего канала: $e',
-        name: 'PlayerPage',
-        error: e,
-        stackTrace: stackTrace,
-      );
-    }
-  }
 
   Widget _buildPlayerScaffold() {
     return Scaffold(
@@ -728,7 +682,7 @@ class _PlayerPageState extends State<PlayerPage> {
         children: [
           if (_videoController != null)
             Center(child: Video(controller: _videoController!)),
-          if ((_isInitializing || !_hasFirstFrame) && _currentChannel != null)
+          if (_isInitializing && _currentChannel != null)
             Container(
               color: Colors.black87,
               child: Center(
@@ -831,8 +785,6 @@ class _PlayerPageState extends State<PlayerPage> {
   void _disposeController() {
     _errorSubscription?.cancel();
     _errorSubscription = null;
-    _blocSubscription?.cancel();
-    _blocSubscription = null;
     _player?.dispose();
     _videoController = null;
     _player = null;
@@ -880,26 +832,32 @@ class _PlayerPageState extends State<PlayerPage> {
 
   Future<void> _initializePlayer(String url, {entities.VideoQuality? quality}) async {
     if (_isInitializing) return;
-    setState(() {
-      _isInitializing = true;
-      _errorMessage = null;
-      _hasFirstFrame = false;
-    });
+    final videoQuality = quality ?? entities.VideoQuality.auto;
+    if (mounted) {
+      setState(() {
+        _isInitializing = true;
+        _errorMessage = null;
+      });
+    }
     try {
       developer.log('Инициализация плеера для URL: $url', name: 'PlayerPage');
       if (_player == null) {
-        final videoQuality = quality ?? entities.VideoQuality.auto;
         final bufferSize = _getBufferSizeForQuality(videoQuality);
+        final initialBufferSize = _getInitialBufferSize(videoQuality);
         final networkTimeout = _getNetworkTimeoutForQuality(videoQuality);
         developer.log(
-          'Настройка качества: $videoQuality, размер буфера: ${bufferSize ~/ (1024 * 1024)} MB, таймаут сети: ${networkTimeout ~/ 1000}s',
+          'Настройка качества: $videoQuality, размер буфера: ${bufferSize ~/ (1024 * 1024)} MB, начальный буфер: ${initialBufferSize ~/ (1024 * 1024)} MB, таймаут сети: ${networkTimeout ~/ 1000}s',
           name: 'PlayerPage',
         );
         _player = Player(
           configuration: PlayerConfiguration(
+            title: 'IPTVCA Player',
             bufferSize: bufferSize,
             protocolWhitelist: ['http', 'https', 'rtmp', 'rtsp', 'tcp', 'udp'],
             vo: 'gpu',
+            ready: () {
+              developer.log('MediaKit Player инициализирован и готов', name: 'PlayerPage');
+            },
           ),
         );
         _videoController = VideoController(
@@ -921,36 +879,27 @@ class _PlayerPageState extends State<PlayerPage> {
           _errorListenerSet = true;
         }
       }
-      final media = Media(url);
-      final networkOptions = quality != null ? _getNetworkOptionsForQuality(quality) : null;
-      if (networkOptions != null && networkOptions.isNotEmpty) {
-        developer.log('Применение сетевых параметров для расширения канала: $networkOptions', name: 'PlayerPage');
-      }
+      final media = Media(
+        url,
+        httpHeaders: {
+          'Connection': 'keep-alive',
+          'Accept': '*/*',
+          'User-Agent': 'IPTVCA/1.0',
+          'Accept-Encoding': 'identity',
+          'Accept-Language': '*',
+        },
+        extras: {
+          'channel': _currentChannel?.name ?? 'Unknown',
+          'quality': videoQuality.toString(),
+        },
+      );
       await _player!.open(media, play: true);
-      developer.log('MediaKit Player создан и запущен', name: 'PlayerPage');
+      developer.log('MediaKit Player создан и запущен с оптимизацией', name: 'PlayerPage');
       if (mounted) {
         setState(() {
           _isInitializing = false;
         });
       }
-      _player!.stream.playing.firstWhere((playing) => playing).then((_) {
-        if (mounted && _player != null) {
-          Future.delayed(const Duration(milliseconds: 300), () {
-            if (mounted && _player != null) {
-              setState(() {
-                _hasFirstFrame = true;
-              });
-            }
-          });
-        }
-      }).catchError((e) {
-        developer.log('Ошибка ожидания первого кадра: $e', name: 'PlayerPage');
-        if (mounted) {
-          setState(() {
-            _hasFirstFrame = true;
-          });
-        }
-      });
     } catch (e, stackTrace) {
       developer.log(
         'Ошибка инициализации плеера: $e',
@@ -962,7 +911,6 @@ class _PlayerPageState extends State<PlayerPage> {
       if (mounted) {
         setState(() {
           _isInitializing = false;
-          _hasFirstFrame = false;
           _errorMessage = e.toString().replaceAll('Exception: ', '');
         });
       }
@@ -977,7 +925,6 @@ class _PlayerPageState extends State<PlayerPage> {
         _videoUrl = channel.url;
         _localIsFavorite = null;
         _errorMessage = null;
-        _hasFirstFrame = false;
       });
       context.read<ChannelBloc>().add(SelectChannelEvent(channel));
       final quality = _getVideoQualityFromSettings(context);
@@ -996,7 +943,6 @@ class _PlayerPageState extends State<PlayerPage> {
       _currentChannel = channel;
       _errorMessage = null;
       _isInitializing = true;
-      _hasFirstFrame = false;
       _localIsFavorite = null;
     });
     try {
@@ -1006,34 +952,32 @@ class _PlayerPageState extends State<PlayerPage> {
       );
       final currentPlayer = _player;
       if (currentPlayer != null) {
-        final media = Media(channel.url);
+        final quality = _getVideoQualityFromSettings(context);
+        final media = Media(
+          channel.url,
+          httpHeaders: {
+            'Connection': 'keep-alive',
+            'Accept': '*/*',
+            'User-Agent': 'IPTVCA/1.0',
+            'Accept-Encoding': 'identity',
+            'Accept-Language': '*',
+          },
+          extras: {
+            'channel': channel.name,
+            'quality': quality.toString(),
+          },
+        );
         await currentPlayer.open(media, play: true);
         developer.log(
-          'Канал переключен и воспроизведение запущено',
+          'Канал переключен и воспроизведение запущено с оптимизацией',
           name: 'PlayerPage',
         );
-        currentPlayer.stream.playing.firstWhere((playing) => playing).then((_) {
-          if (mounted && currentPlayer == _player) {
-            Future.delayed(const Duration(milliseconds: 200), () {
-              if (mounted && _player != null) {
-                setState(() {
-                  _hasFirstFrame = true;
-                  _isInitializing = false;
-                });
-                context.read<ChannelBloc>().add(SelectChannelEvent(channel));
-              }
-            });
-          }
-        }).catchError((e) {
-          developer.log('Ошибка ожидания первого кадра при переключении: $e', name: 'PlayerPage');
-          if (mounted) {
-            setState(() {
-              _hasFirstFrame = true;
-              _isInitializing = false;
-            });
-            context.read<ChannelBloc>().add(SelectChannelEvent(channel));
-          }
-        });
+        if (mounted) {
+          setState(() {
+            _isInitializing = false;
+          });
+          context.read<ChannelBloc>().add(SelectChannelEvent(channel));
+        }
       } else {
         developer.log(
           'Плеер стал null во время переключения',
@@ -1144,26 +1088,6 @@ class _PlayerPageState extends State<PlayerPage> {
       ],
       child: BlocBuilder<ChannelBloc, ChannelState>(
         builder: (context, state) {
-          if (state is ChannelsLoaded) {
-            if (!_hasInitializedFromExtra && _currentChannel == null && !_hasTriedToSaveChannel) {
-              Future.microtask(() {
-                final bloc = context.read<ChannelBloc>();
-                _restoreLastChannel(bloc);
-              });
-            } else if (_hasInitializedFromExtra && _currentChannel != null && !_hasTriedToSaveChannel) {
-              _hasTriedToSaveChannel = true;
-              Future.microtask(() {
-                try {
-                  context.read<ChannelBloc>().add(SelectChannelEvent(_currentChannel!));
-                } catch (e) {
-                  developer.log(
-                    'Ошибка сохранения канала: $e',
-                    name: 'PlayerPage',
-                  );
-                }
-              });
-            }
-          }
           return _buildPlayerScaffold();
         },
       ),

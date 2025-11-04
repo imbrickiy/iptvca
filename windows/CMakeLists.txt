@@ -58,6 +58,14 @@ add_subdirectory(${FLUTTER_MANAGED_DIR})
 add_subdirectory("runner")
 
 
+# Set Flutter include directories for plugins
+set(FLUTTER_EPHEMERAL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/flutter/ephemeral")
+set(FLUTTER_WRAPPER_ROOT "${FLUTTER_EPHEMERAL_DIR}/cpp_client_wrapper")
+include_directories(
+  "${FLUTTER_EPHEMERAL_DIR}"
+  "${FLUTTER_WRAPPER_ROOT}/include"
+)
+
 # Generated plugin build rules, which manage building the plugins and adding
 # them to the application.
 include(flutter/generated_plugins.cmake)

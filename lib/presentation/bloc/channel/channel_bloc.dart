@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:iptvca/core/di/injection_container.dart';
 import 'package:iptvca/core/storage/storage_interface.dart';
 import 'package:iptvca/data/models/channel_model.dart';
 import 'package:iptvca/domain/entities/channel.dart';
@@ -23,7 +24,6 @@ class ChannelBloc extends Bloc<ChannelEvent, ChannelState> {
   final GetAllChannels _getAllChannels;
   final StorageInterface _storage;
   static const String _favoritesKey = 'favorite_channels';
-  static const String _lastChannelKey = 'last_channel_id';
   List<Channel> _allChannels = [];
   Map<String, Channel> _channelsMap = {};
   Set<String> _favoriteChannelIds = {};
@@ -39,7 +39,8 @@ class ChannelBloc extends Bloc<ChannelEvent, ChannelState> {
       result.fold(
         (failure) => emit(ChannelError(failure.message ?? 'Ошибка загрузки каналов')),
         (channels) {
-          _allChannels = _applyFavoritesToChannels(channels);
+          final filteredChannels = _filterUnavailableChannels(channels);
+          _allChannels = _applyFavoritesToChannels(filteredChannels);
           _updateChannelsMap();
           emit(ChannelsLoaded(
             channels: _allChannels,
@@ -48,13 +49,35 @@ class ChannelBloc extends Bloc<ChannelEvent, ChannelState> {
         },
       );
     } else {
-      _allChannels = _applyFavoritesToChannels(_allChannels);
+      final filteredChannels = _filterUnavailableChannels(_allChannels);
+      _allChannels = _applyFavoritesToChannels(filteredChannels);
       _updateChannelsMap();
       emit(ChannelsLoaded(
         channels: _allChannels,
         showFavoritesOnly: event.showFavoritesOnly,
       ));
     }
+  }
+
+  List<Channel> _filterUnavailableChannels(List<Channel> channels) {
+    final availabilityService = InjectionContainer.instance.channelAvailabilityService;
+    if (availabilityService == null) {
+      return channels;
+    }
+    final filteredChannels = <Channel>[];
+    for (final channel in channels) {
+      final cachedResult = availabilityService.getCachedResult(channel.id);
+      if (cachedResult == null) {
+        filteredChannels.add(channel);
+      } else if (cachedResult.isAvailable) {
+        filteredChannels.add(channel);
+      }
+    }
+    developer.log(
+      'Отфильтровано ${channels.length - filteredChannels.length} недоступных каналов',
+      name: 'ChannelBloc',
+    );
+    return filteredChannels;
   }
 
   void _updateChannelsMap() {
@@ -133,7 +156,6 @@ class ChannelBloc extends Bloc<ChannelEvent, ChannelState> {
       emit(
         currentState.copyWith(selectedChannel: event.channel),
       );
-      await _saveLastChannel(event.channel);
     }
   }
 
@@ -174,14 +196,19 @@ class ChannelBloc extends Bloc<ChannelEvent, ChannelState> {
       } else {
         _favoriteChannelIds.remove(event.channel.id);
       }
-      final updatedChannels = currentState.channels.map((channel) {
-        if (channel.id == event.channel.id) {
-          return ChannelModel.fromEntity(channel).copyWithModel(
-            isFavorite: isFavorite,
-          );
-        }
-        return channel;
-      }).toList();
+      final updatedChannels = List<Channel>.generate(
+        currentState.channels.length,
+        (i) {
+          final channel = currentState.channels[i];
+          if (channel.id == event.channel.id) {
+            return ChannelModel.fromEntity(channel).copyWithModel(
+              isFavorite: isFavorite,
+            );
+          }
+          return channel;
+        },
+        growable: false,
+      );
 
       final updatedChannel = _channelsMap[event.channel.id];
       if (updatedChannel != null) {
@@ -213,35 +240,5 @@ class ChannelBloc extends Bloc<ChannelEvent, ChannelState> {
     }
   }
 
-  Future<void> _saveLastChannel(Channel channel) async {
-    try {
-      await _storage.setString(_lastChannelKey, channel.id);
-      developer.log('Сохранен последний канал: ${channel.name}', name: 'ChannelBloc');
-    } catch (e) {
-      developer.log('Ошибка сохранения последнего канала: $e', name: 'ChannelBloc');
-    }
-  }
-
-  Future<String?> getLastChannelId() async {
-    try {
-      return await _storage.getString(_lastChannelKey);
-    } catch (e) {
-      developer.log('Ошибка загрузки последнего канала: $e', name: 'ChannelBloc');
-      return null;
-    }
-  }
-
-  Future<Channel?> getLastChannel() async {
-    final lastChannelId = await getLastChannelId();
-    if (lastChannelId == null || _channelsMap.isEmpty) {
-      return null;
-    }
-    try {
-      return _channelsMap[lastChannelId];
-    } catch (e) {
-      developer.log('Последний канал не найден: $e', name: 'ChannelBloc');
-      return null;
-    }
-  }
 }
 

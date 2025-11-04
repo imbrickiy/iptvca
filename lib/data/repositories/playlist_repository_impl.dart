@@ -1,6 +1,8 @@
 
+import 'dart:developer' as developer;
 import 'package:dartz/dartz.dart';
 import 'package:iptvca/core/errors/failures.dart';
+import 'package:iptvca/core/services/channels_cache_service.dart';
 import 'package:iptvca/data/datasources/local/playlist_local_datasource.dart';
 import 'package:iptvca/data/datasources/remote/playlist_remote_datasource.dart';
 import 'package:iptvca/data/models/playlist_model.dart';
@@ -12,15 +14,30 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
   PlaylistRepositoryImpl(
     this._remoteDataSource,
     this._localDataSource,
+    this._channelsCacheService,
   );
 
   final PlaylistRemoteDataSource _remoteDataSource;
   final PlaylistLocalDataSource _localDataSource;
+  final ChannelsCacheService? _channelsCacheService;
 
   @override
   Future<Either<Failure, List<Channel>>> loadPlaylistFromUrl(String url) async {
     try {
       final channels = await _remoteDataSource.parsePlaylistFromUrl(url);
+      if (channels.isNotEmpty && _channelsCacheService != null) {
+        _channelsCacheService.saveChannels(channels).then((_) {
+          developer.log(
+            'Сохранено ${channels.length} каналов в кэш после парсинга из URL',
+            name: 'PlaylistRepository',
+          );
+        }).catchError((e) {
+          developer.log(
+            'Ошибка сохранения каналов в кэш: $e',
+            name: 'PlaylistRepository',
+          );
+        });
+      }
       return Right(channels);
     } on NetworkFailure catch (e) {
       return Left(e);
@@ -37,6 +54,19 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
   ) async {
     try {
       final channels = await _remoteDataSource.parsePlaylistFromFile(filePath);
+      if (channels.isNotEmpty && _channelsCacheService != null) {
+        _channelsCacheService.saveChannels(channels).then((_) {
+          developer.log(
+            'Сохранено ${channels.length} каналов в кэш после парсинга из файла',
+            name: 'PlaylistRepository',
+          );
+        }).catchError((e) {
+          developer.log(
+            'Ошибка сохранения каналов в кэш: $e',
+            name: 'PlaylistRepository',
+          );
+        });
+      }
       return Right(channels);
     } on ValidationFailure catch (e) {
       return Left(e);

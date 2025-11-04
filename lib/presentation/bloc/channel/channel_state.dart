@@ -45,29 +45,33 @@ class ChannelsLoaded extends ChannelState {
         _lastShowFavoritesOnly == showFavoritesOnly) {
       return _cachedFilteredChannels!;
     }
-    var filtered = channels;
+    List<Channel> filtered = channels;
     if (showFavoritesOnly) {
-      filtered = filtered.where((channel) => channel.isFavorite).toList();
+      filtered = List.generate(
+        channels.length,
+        (i) => channels[i],
+        growable: false,
+      ).where((channel) => channel.isFavorite).toList();
     }
     if (searchQuery.isNotEmpty) {
       final queryLower = searchQuery.toLowerCase();
-      filtered = filtered
-          .where(
-            (channel) => channel.name.toLowerCase().contains(queryLower),
-          )
-          .toList();
+      final filteredList = <Channel>[];
+      for (final channel in filtered) {
+        if (channel.name.toLowerCase().contains(queryLower)) {
+          filteredList.add(channel);
+        }
+      }
+      filtered = filteredList;
     }
     if (filterGroup != null && filterGroup!.isNotEmpty) {
-      filtered = filtered
-          .where((channel) => channel.groupTitle == filterGroup)
-          .toList();
+      filtered = filtered.where(
+        (channel) => channel.groupTitle == filterGroup,
+      ).toList(growable: false);
     }
     _cachedFilteredChannels = filtered;
     _lastSearchQuery = searchQuery;
     _lastFilterGroup = filterGroup;
     _lastShowFavoritesOnly = showFavoritesOnly;
-    _channelsMap = null;
-    _cachedAvailableGroups = null;
     return filtered;
   }
 
@@ -87,14 +91,16 @@ class ChannelsLoaded extends ChannelState {
     if (_cachedAvailableGroups != null) {
       return _cachedAvailableGroups!;
     }
-    final groups = channels
-        .map((channel) => channel.groupTitle)
-        .whereType<String>()
-        .toSet()
-        .toList()
-      ..sort();
-    _cachedAvailableGroups = groups;
-    return groups;
+    final groups = <String>{};
+    for (final channel in channels) {
+      final groupTitle = channel.groupTitle;
+      if (groupTitle != null) {
+        groups.add(groupTitle);
+      }
+    }
+    final sortedGroups = groups.toList()..sort();
+    _cachedAvailableGroups = sortedGroups;
+    return sortedGroups;
   }
 
   @override

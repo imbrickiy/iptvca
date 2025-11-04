@@ -92,7 +92,7 @@ class PlaylistRemoteDataSourceImpl implements PlaylistRemoteDataSource {
   Future<List<ChannelModel>> parsePlaylistFromUrl(String url, {bool forceRefresh = false}) async {
     try {
       final content = await fetchPlaylistFromUrl(url, forceRefresh: forceRefresh);
-      final channels = content.length > 100000
+      final channels = content.length > 50000
           ? await compute(_parseM3uPlaylistCompute, _ParseM3uData(content, _parser.uuid))
           : _parser.parsePlaylist(content);
       return channels;
@@ -129,7 +129,7 @@ class PlaylistRemoteDataSourceImpl implements PlaylistRemoteDataSource {
         }
       }
       developer.log('Длина содержимого: ${content.length} символов', name: 'PlaylistRemoteDataSource');
-      final channels = content.length > 100000
+      final channels = content.length > 50000
           ? await compute(_parseM3uPlaylistCompute, _ParseM3uData(content, _parser.uuid))
           : _parser.parsePlaylist(content);
       developer.log('Из файла извлечено ${channels.length} каналов', name: 'PlaylistRemoteDataSource');

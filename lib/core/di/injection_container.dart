@@ -7,6 +7,8 @@ import 'package:iptvca/core/storage/file_storage.dart';
 import 'package:iptvca/core/storage/shared_preferences_storage.dart';
 import 'package:iptvca/core/storage/storage_interface.dart';
 import 'package:iptvca/core/services/network_cache_service.dart';
+import 'package:iptvca/core/services/channels_cache_service.dart';
+import 'package:iptvca/core/services/channel_availability_service.dart';
 import 'package:iptvca/data/datasources/local/playlist_local_datasource.dart';
 import 'package:iptvca/data/datasources/remote/m3u_parser.dart';
 import 'package:iptvca/data/datasources/remote/playlist_remote_datasource.dart';
@@ -31,10 +33,13 @@ class InjectionContainer {
   StorageInterface? _storage;
   http.Client? _httpClient;
   NetworkCacheService? _cacheService;
+  ChannelsCacheService? _channelsCacheService;
+  ChannelAvailabilityService? _channelAvailabilityService;
   final Uuid _uuid = const Uuid();
 
   StorageInterface? get storage => _storage;
   NetworkCacheService? get cacheService => _cacheService;
+  ChannelAvailabilityService? get channelAvailabilityService => _channelAvailabilityService;
 
   Future<void> init() async {
     try {
@@ -53,7 +58,11 @@ class InjectionContainer {
         }
       }
       _cacheService = NetworkCacheService(_storage);
+      _channelsCacheService = ChannelsCacheService();
+      _channelAvailabilityService = ChannelAvailabilityService(_httpClient!);
       developer.log('NetworkCacheService инициализирован');
+      developer.log('ChannelsCacheService инициализирован');
+      developer.log('ChannelAvailabilityService инициализирован');
     } catch (e) {
       throw StateError('Ошибка инициализации InjectionContainer: $e');
     }
@@ -70,7 +79,11 @@ class InjectionContainer {
       _cacheService,
     );
     final localDataSource = PlaylistLocalDataSourceImpl(_storage!);
-    final repository = PlaylistRepositoryImpl(remoteDataSource, localDataSource);
+    final repository = PlaylistRepositoryImpl(
+      remoteDataSource,
+      localDataSource,
+      _channelsCacheService,
+    );
 
     return PlaylistBloc(
       GetPlaylists(repository),
@@ -92,9 +105,16 @@ class InjectionContainer {
       _cacheService,
     );
     final localDataSource = PlaylistLocalDataSourceImpl(_storage!);
-    final repository = PlaylistRepositoryImpl(remoteDataSource, localDataSource);
+    final repository = PlaylistRepositoryImpl(
+      remoteDataSource,
+      localDataSource,
+      _channelsCacheService,
+    );
 
-    return ChannelBloc(GetAllChannels(repository), _storage!);
+    return ChannelBloc(
+      GetAllChannels(repository, _channelsCacheService!),
+      _storage!,
+    );
   }
 
   SettingsBloc createSettingsBloc() {
