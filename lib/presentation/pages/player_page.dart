@@ -572,8 +572,62 @@ class _PlayerPageState extends State<PlayerPage> {
         _errorMessage = null;
         _localIsFavorite = null;
         _hasInitializedFromExtra = true;
+        if (channel != null) {
+          context.read<ChannelBloc>().add(SelectChannelEvent(channel));
+        }
         _initializePlayer(_videoUrl!);
       }
+    } else {
+      try {
+        final bloc = context.read<ChannelBloc>();
+        _restoreLastChannel(bloc);
+      } catch (e) {
+        developer.log(
+          'ChannelBloc еще не доступен, восстановление будет выполнено позже',
+          name: 'PlayerPage',
+        );
+      }
+    }
+  }
+
+  Future<void> _restoreLastChannel(ChannelBloc bloc) async {
+    if (_hasInitializedFromExtra || _currentChannel != null) {
+      return;
+    }
+    try {
+      if (bloc.state is! ChannelsLoaded) {
+        developer.log(
+          'Каналы еще не загружены, ожидание...',
+          name: 'PlayerPage',
+        );
+        bloc.stream.firstWhere((state) => state is ChannelsLoaded).then((_) {
+          if (mounted) {
+            _restoreLastChannel(bloc);
+          }
+        });
+        return;
+      }
+      final lastChannel = await bloc.getLastChannel();
+      if (lastChannel != null && mounted) {
+        developer.log(
+          'Восстановление последнего канала: ${lastChannel.name}',
+          name: 'PlayerPage',
+        );
+        _disposeController();
+        _videoUrl = lastChannel.url;
+        _currentChannel = lastChannel;
+        _errorMessage = null;
+        _localIsFavorite = null;
+        _hasInitializedFromExtra = true;
+        _initializePlayer(_videoUrl!);
+      }
+    } catch (e, stackTrace) {
+      developer.log(
+        'Ошибка восстановления последнего канала: $e',
+        name: 'PlayerPage',
+        error: e,
+        stackTrace: stackTrace,
+      );
     }
   }
 
@@ -677,6 +731,7 @@ class _PlayerPageState extends State<PlayerPage> {
       _currentChannel = channel;
       _videoUrl = channel.url;
       _localIsFavorite = null;
+      context.read<ChannelBloc>().add(SelectChannelEvent(channel));
       await _initializePlayer(channel.url);
       return;
     }
@@ -694,6 +749,7 @@ class _PlayerPageState extends State<PlayerPage> {
       _isInitializing = true;
       _localIsFavorite = null;
     });
+    context.read<ChannelBloc>().add(SelectChannelEvent(channel));
     try {
       developer.log(
         'Переключение канала на: ${channel.name}',
@@ -804,6 +860,11 @@ class _PlayerPageState extends State<PlayerPage> {
       create: (context) {
         final bloc = InjectionContainer.instance.createChannelBloc();
         bloc.add(const LoadChannelsEvent());
+        bloc.stream.firstWhere((state) => state is ChannelsLoaded).then((_) {
+          if (mounted && !_hasInitializedFromExtra && _currentChannel == null) {
+            _restoreLastChannel(bloc);
+          }
+        });
         return bloc;
       },
       child: Scaffold(

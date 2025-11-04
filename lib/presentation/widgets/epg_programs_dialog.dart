@@ -351,37 +351,50 @@ class _EpgProgramsDialogState extends State<EpgProgramsDialog> {
         ),
       );
     }
-    _programKeys.clear();
-    final children = <Widget>[];
-    if (currentProgram != null) {
-      children.addAll([
-        _buildCurrentProgramCard(currentProgram),
-        const SizedBox(height: 16),
-        const Divider(),
-        const SizedBox(height: 16),
-      ]);
-    }
-    children.add(
-      Text(
-        'Программа на сегодня',
-        style: Theme.of(context).textTheme.titleLarge,
-      ),
+    return Column(
+      children: [
+        if (currentProgram != null) ...[
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: _buildCurrentProgramCard(currentProgram),
+          ),
+          const Divider(height: 1),
+        ],
+        Expanded(
+          child: _buildProgramsScrollList(todayPrograms),
+        ),
+      ],
     );
-    children.add(const SizedBox(height: 8));
+  }
+
+  Widget _buildProgramsScrollList(List<Map<String, dynamic>> todayPrograms) {
+    _programKeys.clear();
+    final children = <Widget>[
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0),
+        child: Text(
+          'Программа на сегодня',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+      ),
+    ];
     for (int i = 0; i < todayPrograms.length; i++) {
       final program = todayPrograms[i];
       final key = GlobalKey();
       _programKeys[i] = key;
       children.add(
-        KeyedSubtree(
-          key: key,
-          child: _buildProgramCard(program),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          child: KeyedSubtree(
+            key: key,
+            child: _buildProgramCard(program),
+          ),
         ),
       );
     }
     return ListView(
       controller: _scrollController,
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.only(bottom: 16.0),
       children: children,
     );
   }
@@ -399,9 +412,11 @@ class _EpgProgramsDialogState extends State<EpgProgramsDialog> {
         : 0.0;
     return Card(
       color: Theme.of(context).colorScheme.primaryContainer,
+      margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(14.0),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
@@ -409,26 +424,29 @@ class _EpgProgramsDialogState extends State<EpgProgramsDialog> {
                 Icon(
                   Icons.play_circle_filled,
                   color: Theme.of(context).colorScheme.primary,
+                  size: 20,
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 Text(
                   'Сейчас',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         color: Theme.of(context).colorScheme.onPrimaryContainer,
                         fontWeight: FontWeight.bold,
+                        fontSize: 16,
                       ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text(
               title,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     color: Theme.of(context).colorScheme.onPrimaryContainer,
+                    fontSize: 18,
                   ),
             ),
             if (description != null) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Text(
                 description,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -436,63 +454,72 @@ class _EpgProgramsDialogState extends State<EpgProgramsDialog> {
                           .colorScheme
                           .onPrimaryContainer
                           .withValues(alpha: 0.8),
+                      fontSize: 13,
                     ),
-                maxLines: 3,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
             ],
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Row(
               children: [
                 Icon(
                   Icons.access_time,
-                  size: 16,
+                  size: 14,
                   color: Theme.of(context)
                       .colorScheme
                       .onPrimaryContainer
                       .withValues(alpha: 0.7),
                 ),
                 const SizedBox(width: 4),
-                Text(
-                  '${_formatTime(startTime)} - ${endTimeStr != null ? _formatTime(DateTime.parse(endTimeStr)) : '?'}',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                Flexible(
+                  child: Text(
+                    '${_formatTime(startTime)} - ${endTimeStr != null ? _formatTime(DateTime.parse(endTimeStr)) : '?'}',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onPrimaryContainer
+                              .withValues(alpha: 0.7),
+                          fontSize: 12,
+                        ),
+                  ),
+                ),
+                if (category != null) ...[
+                  const SizedBox(width: 12),
+                  Flexible(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
                         color: Theme.of(context)
                             .colorScheme
                             .onPrimaryContainer
-                            .withValues(alpha: 0.7),
+                            .withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(4),
                       ),
-                ),
-                if (category != null) ...[
-                  const SizedBox(width: 16),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onPrimaryContainer
-                          .withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      category,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onPrimaryContainer
-                                .withValues(alpha: 0.7),
-                          ),
+                      child: Text(
+                        category,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onPrimaryContainer
+                                  .withValues(alpha: 0.7),
+                              fontSize: 11,
+                            ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ),
                 ],
               ],
             ),
             if (endTimeStr != null) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               LinearProgressIndicator(
                 value: progress.clamp(0.0, 1.0),
+                minHeight: 4,
                 backgroundColor: Theme.of(context)
                     .colorScheme
                     .onPrimaryContainer
@@ -533,37 +560,48 @@ class _EpgProgramsDialogState extends State<EpgProgramsDialog> {
             : BorderSide.none,
       ),
       child: ListTile(
-        leading: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (isCurrent)
-              Icon(
-                Icons.play_circle_filled,
-                color: theme.colorScheme.primary,
-                size: 20,
-              )
-            else
-              const SizedBox(width: 20, height: 20),
-            const SizedBox(height: 4),
-            Text(
-              _formatTime(startTime),
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                color: isCurrent
-                    ? theme.colorScheme.onPrimaryContainer
-                    : null,
-              ),
-            ),
-            if (endTimeStr != null)
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 6,
+        ),
+        leading: SizedBox(
+          width: 60,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (isCurrent)
+                Icon(
+                  Icons.play_circle_filled,
+                  color: theme.colorScheme.primary,
+                  size: 16,
+                )
+              else
+                const SizedBox(width: 16, height: 16),
+              const SizedBox(height: 1),
               Text(
-                _formatTime(DateTime.parse(endTimeStr)),
+                _formatTime(startTime),
                 style: theme.textTheme.bodySmall?.copyWith(
+                  fontSize: 11,
+                  fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
                   color: isCurrent
-                      ? theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.7)
-                      : theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                      ? theme.colorScheme.onPrimaryContainer
+                      : null,
                 ),
               ),
-          ],
+              if (endTimeStr != null)
+                Text(
+                  _formatTime(DateTime.parse(endTimeStr)),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontSize: 9,
+                    color: isCurrent
+                        ? theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.7)
+                        : theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                ),
+            ],
+          ),
         ),
         title: Text(
           title,
@@ -575,26 +613,29 @@ class _EpgProgramsDialogState extends State<EpgProgramsDialog> {
               : null,
         ),
         subtitle: description != null
-            ? Text(
-                description,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: isCurrent
-                    ? theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.8),
-                      )
-                    : null,
+            ? Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: isCurrent
+                      ? theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.8),
+                        )
+                      : null,
+                ),
               )
             : null,
         trailing: isCurrent
             ? Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 4,
+                  horizontal: 6,
+                  vertical: 2,
                 ),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.primary,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   'Сейчас',

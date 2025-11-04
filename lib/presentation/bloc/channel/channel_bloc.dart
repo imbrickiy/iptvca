@@ -22,6 +22,7 @@ class ChannelBloc extends Bloc<ChannelEvent, ChannelState> {
   final GetAllChannels _getAllChannels;
   final StorageInterface _storage;
   static const String _favoritesKey = 'favorite_channels';
+  static const String _lastChannelKey = 'last_channel_id';
   List<Channel> _allChannels = [];
   Set<String> _favoriteChannelIds = {};
 
@@ -105,6 +106,7 @@ class ChannelBloc extends Bloc<ChannelEvent, ChannelState> {
       emit(
         currentState.copyWith(selectedChannel: event.channel),
       );
+      await _saveLastChannel(event.channel);
     }
   }
 
@@ -179,6 +181,40 @@ class ChannelBloc extends Bloc<ChannelEvent, ChannelState> {
       emit(
         currentState.copyWith(showFavoritesOnly: event.showFavoritesOnly),
       );
+    }
+  }
+
+  Future<void> _saveLastChannel(Channel channel) async {
+    try {
+      await _storage.setString(_lastChannelKey, channel.id);
+      developer.log('Сохранен последний канал: ${channel.name}', name: 'ChannelBloc');
+    } catch (e) {
+      developer.log('Ошибка сохранения последнего канала: $e', name: 'ChannelBloc');
+    }
+  }
+
+  Future<String?> getLastChannelId() async {
+    try {
+      return await _storage.getString(_lastChannelKey);
+    } catch (e) {
+      developer.log('Ошибка загрузки последнего канала: $e', name: 'ChannelBloc');
+      return null;
+    }
+  }
+
+  Future<Channel?> getLastChannel() async {
+    final lastChannelId = await getLastChannelId();
+    if (lastChannelId == null || _allChannels.isEmpty) {
+      return null;
+    }
+    try {
+      return _allChannels.firstWhere(
+        (channel) => channel.id == lastChannelId,
+        orElse: () => throw StateError('Channel not found'),
+      );
+    } catch (e) {
+      developer.log('Последний канал не найден: $e', name: 'ChannelBloc');
+      return null;
     }
   }
 }
