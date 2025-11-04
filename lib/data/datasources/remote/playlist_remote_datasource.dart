@@ -2,7 +2,9 @@
 import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:uuid/uuid.dart';
 import 'package:iptvca/core/errors/failures.dart';
 import 'package:iptvca/core/constants/app_constants.dart';
 import 'package:iptvca/core/services/network_cache_service.dart';
@@ -90,7 +92,10 @@ class PlaylistRemoteDataSourceImpl implements PlaylistRemoteDataSource {
   Future<List<ChannelModel>> parsePlaylistFromUrl(String url, {bool forceRefresh = false}) async {
     try {
       final content = await fetchPlaylistFromUrl(url, forceRefresh: forceRefresh);
-      return _parser.parsePlaylist(content);
+      final channels = content.length > 100000
+          ? await compute(_parseM3uPlaylistCompute, _ParseM3uData(content, _parser.uuid))
+          : _parser.parsePlaylist(content);
+      return channels;
     } catch (e) {
       if (e is Failure) {
         rethrow;
@@ -124,7 +129,9 @@ class PlaylistRemoteDataSourceImpl implements PlaylistRemoteDataSource {
         }
       }
       developer.log('Длина содержимого: ${content.length} символов', name: 'PlaylistRemoteDataSource');
-      final channels = await _parser.parsePlaylist(content);
+      final channels = content.length > 100000
+          ? await compute(_parseM3uPlaylistCompute, _ParseM3uData(content, _parser.uuid))
+          : _parser.parsePlaylist(content);
       developer.log('Из файла извлечено ${channels.length} каналов', name: 'PlaylistRemoteDataSource');
       return channels;
     } catch (e) {
@@ -134,5 +141,15 @@ class PlaylistRemoteDataSourceImpl implements PlaylistRemoteDataSource {
       throw ParseFailure(message: 'Ошибка чтения файла: $e');
     }
   }
+
+  static List<ChannelModel> _parseM3uPlaylistCompute(_ParseM3uData data) {
+    return M3uParser.parsePlaylistStatic(data.content, data.uuid);
+  }
+}
+
+class _ParseM3uData {
+  _ParseM3uData(this.content, this.uuid);
+  final String content;
+  final Uuid uuid;
 }
 

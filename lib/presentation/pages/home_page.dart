@@ -1,57 +1,29 @@
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:iptvca/core/utils/debounce.dart';
 import 'package:iptvca/presentation/pages/settings_page.dart';
 
-class HomePage extends StatefulWidget {
+class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
-  @override
-  State<HomePage> createState() => _HomePageState();
-}
-
-class _HomePageState extends State<HomePage> {
-  late final Debounce _debounce;
-
-  @override
-  void initState() {
-    super.initState();
-    _debounce = Debounce(const Duration(milliseconds: 300));
+  void _showSettingsModal(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => const SettingsModal(),
+      barrierDismissible: true,
+    );
   }
 
-  @override
-  void dispose() {
-    _debounce.dispose();
-    super.dispose();
+  void _navigateToPlaylists(BuildContext context) {
+    context.push('/playlists');
   }
 
-  void _showSettingsModal() {
-    _debounce(() {
-      showDialog(
-        context: context,
-        builder: (context) => const SettingsModal(),
-        barrierDismissible: true,
-      );
-    });
+  void _navigateToChannels(BuildContext context) {
+    context.push('/channels');
   }
 
-  void _navigateToPlaylists() {
-    _debounce(() {
-      context.push('/playlists');
-    });
-  }
-
-  void _navigateToChannels() {
-    _debounce(() {
-      context.push('/channels');
-    });
-  }
-
-  void _navigateToFavorites() {
-    _debounce(() {
-      context.push('/channels?favorites=true');
-    });
+  void _navigateToFavorites(BuildContext context) {
+    context.push('/channels?favorites=true');
   }
 
   @override
@@ -64,7 +36,7 @@ class _HomePageState extends State<HomePage> {
             padding: const EdgeInsets.only(right: 8),
             child: IconButton(
               icon: const Icon(Icons.settings),
-              onPressed: _showSettingsModal,
+              onPressed: () => _showSettingsModal(context),
             ),
           ),
         ],
@@ -76,7 +48,7 @@ class _HomePageState extends State<HomePage> {
           children: [
             Card(
               child: InkWell(
-                onTap: _navigateToPlaylists,
+                onTap: () => _navigateToPlaylists(context),
                 child: const Padding(
                   padding: EdgeInsets.all(24.0),
                   child: Row(
@@ -108,7 +80,7 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 16),
             Card(
               child: InkWell(
-                onTap: _navigateToChannels,
+                onTap: () => _navigateToChannels(context),
                 child: const Padding(
                   padding: EdgeInsets.all(24.0),
                   child: Row(
@@ -140,7 +112,7 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 16),
             Card(
               child: InkWell(
-                onTap: _navigateToFavorites,
+                onTap: () => _navigateToFavorites(context),
                 child: const Padding(
                   padding: EdgeInsets.all(24.0),
                   child: Row(

@@ -7,8 +7,13 @@ import 'package:uuid/uuid.dart';
 class M3uParser {
   M3uParser(this._uuid);
   final Uuid _uuid;
+  Uuid get uuid => _uuid;
 
   List<ChannelModel> parsePlaylist(String content) {
+    return parsePlaylistStatic(content, _uuid);
+  }
+
+  static List<ChannelModel> parsePlaylistStatic(String content, Uuid uuid) {
     try {
       final lines = content.split('\n');
       developer.log('Парсинг плейлиста: ${lines.length} строк', name: 'M3uParser');
@@ -29,7 +34,7 @@ class M3uParser {
 
         if (line.startsWith('#EXTINF:')) {
           currentExtinf = line;
-          currentAttributes = _parseExtinfLine(line);
+          currentAttributes = _parseExtinfLineStatic(line);
         } else if (line.startsWith('#EXTGRP:')) {
           final groupMatch = RegExp(r'#EXTGRP:(.+)').firstMatch(line);
           if (groupMatch != null && currentAttributes != null) {
@@ -38,10 +43,11 @@ class M3uParser {
         } else if (line.startsWith('#')) {
           continue;
         } else if (currentExtinf != null && line.isNotEmpty && !line.startsWith('#')) {
-          final channel = _createChannelFromExtinf(
+          final channel = _createChannelFromExtinfStatic(
             currentExtinf,
             line,
             currentAttributes,
+            uuid,
           );
           if (channel != null) {
             channels.add(channel);
@@ -61,7 +67,7 @@ class M3uParser {
     }
   }
 
-  Map<String, String> _parseExtinfLine(String extinfLine) {
+  static Map<String, String> _parseExtinfLineStatic(String extinfLine) {
     final attributes = <String, String>{};
     final match = RegExp(
       r'#EXTINF:(-?\d+)\s*(.*)',
@@ -95,10 +101,11 @@ class M3uParser {
     return attributes;
   }
 
-  ChannelModel? _createChannelFromExtinf(
+  static ChannelModel? _createChannelFromExtinfStatic(
     String extinfLine,
     String url,
     Map<String, String>? attributes,
+    Uuid uuid,
   ) {
     try {
       final trimmedUrl = url.trim();
@@ -124,7 +131,7 @@ class M3uParser {
       }
 
       return ChannelModel(
-        id: _uuid.v4(),
+        id: uuid.v4(),
         name: channelName,
         url: url.trim(),
         logoUrl: logoUrl,

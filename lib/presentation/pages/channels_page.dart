@@ -24,7 +24,6 @@ class _GroupsScrollWidget extends StatefulWidget {
 
 class _GroupsScrollWidgetState extends State<_GroupsScrollWidget> {
   late final ScrollController _scrollController;
-  late final Debounce _debounce;
   bool _canScrollLeft = false;
   bool _canScrollRight = false;
 
@@ -32,7 +31,6 @@ class _GroupsScrollWidgetState extends State<_GroupsScrollWidget> {
   void initState() {
     super.initState();
     _scrollController = ScrollController();
-    _debounce = Debounce(const Duration(milliseconds: 300));
     _scrollController.addListener(_updateScrollButtons);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _updateScrollButtons();
@@ -43,7 +41,6 @@ class _GroupsScrollWidgetState extends State<_GroupsScrollWidget> {
   void dispose() {
     _scrollController.removeListener(_updateScrollButtons);
     _scrollController.dispose();
-    _debounce.dispose();
     super.dispose();
   }
 
@@ -63,27 +60,23 @@ class _GroupsScrollWidgetState extends State<_GroupsScrollWidget> {
   }
 
   void _scrollLeft() {
-    _debounce(() {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          (_scrollController.offset - 200).clamp(0.0, _scrollController.position.maxScrollExtent),
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        (_scrollController.offset - 200).clamp(0.0, _scrollController.position.maxScrollExtent),
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
   }
 
   void _scrollRight() {
-    _debounce(() {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          (_scrollController.offset + 200).clamp(0.0, _scrollController.position.maxScrollExtent),
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        (_scrollController.offset + 200).clamp(0.0, _scrollController.position.maxScrollExtent),
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
   }
 
   @override
@@ -116,13 +109,13 @@ class _GroupsScrollWidgetState extends State<_GroupsScrollWidget> {
                     child: FilterChip(
                       label: Text(group),
                       selected: isSelected,
-                      onSelected: (selected) => _debounce(() {
+                      onSelected: (selected) {
                         context.read<ChannelBloc>().add(
                               FilterChannelsByGroupEvent(
                                 selected ? group : '',
                               ),
                             );
-                      }),
+                      },
                     ),
                   );
                 },
@@ -211,7 +204,7 @@ class _ChannelsPageState extends State<ChannelsPage> {
                         ),
                         const SizedBox(height: 32),
                         ElevatedButton.icon(
-                          onPressed: () => _debounce(() => context.push('/playlists')),
+                          onPressed: () => context.push('/playlists'),
                           icon: const Icon(Icons.playlist_play),
                           label: const Text('Перейти к плейлистам'),
                         ),
@@ -234,9 +227,11 @@ class _ChannelsPageState extends State<ChannelsPage> {
                               prefixIcon: Icon(Icons.search),
                             ),
                             onChanged: (value) {
-                              context.read<ChannelBloc>().add(
-                                    SearchChannelsEvent(value),
-                                  );
+                              _debounce(() {
+                                context.read<ChannelBloc>().add(
+                                      SearchChannelsEvent(value),
+                                    );
+                              });
                             },
                           ),
                         ),
@@ -251,11 +246,11 @@ class _ChannelsPageState extends State<ChannelsPage> {
                           tooltip: state.showFavoritesOnly
                               ? 'Показать все каналы'
                               : 'Показать только избранные',
-                          onPressed: () => _debounce(() {
+                          onPressed: () {
                             context.read<ChannelBloc>().add(
                                   FilterFavoritesEvent(!state.showFavoritesOnly),
                                 );
-                          }),
+                          },
                         ),
                       ],
                     ),
@@ -291,7 +286,10 @@ class _ChannelsPageState extends State<ChannelsPage> {
                             itemCount: state.filteredChannels.length,
                             itemBuilder: (context, index) {
                               final channel = state.filteredChannels[index];
-                              return ChannelItem(channel: channel);
+                              return ChannelItem(
+                                key: ValueKey(channel.id),
+                                channel: channel,
+                              );
                             },
                           ),
                   ),
@@ -322,11 +320,11 @@ class _ChannelsPageState extends State<ChannelsPage> {
                       ),
                       const SizedBox(height: 32),
                       ElevatedButton.icon(
-                        onPressed: () => _debounce(() {
+                        onPressed: () {
                           context.read<ChannelBloc>().add(
                                 const LoadChannelsEvent(),
                               );
-                        }),
+                        },
                         icon: const Icon(Icons.refresh),
                         label: const Text('Повторить'),
                       ),

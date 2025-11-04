@@ -1,6 +1,7 @@
 
 import 'dart:convert';
 import 'dart:developer' as developer;
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:iptvca/core/storage/storage_interface.dart';
 import 'package:iptvca/data/models/channel_model.dart';
@@ -24,6 +25,7 @@ class ChannelBloc extends Bloc<ChannelEvent, ChannelState> {
   static const String _favoritesKey = 'favorite_channels';
   static const String _lastChannelKey = 'last_channel_id';
   List<Channel> _allChannels = [];
+  Map<String, Channel> _channelsMap = {};
   Set<String> _favoriteChannelIds = {};
 
   Future<void> _onLoadChannels(
@@ -38,6 +40,7 @@ class ChannelBloc extends Bloc<ChannelEvent, ChannelState> {
         (failure) => emit(ChannelError(failure.message ?? 'Ошибка загрузки каналов')),
         (channels) {
           _allChannels = _applyFavoritesToChannels(channels);
+          _updateChannelsMap();
           emit(ChannelsLoaded(
             channels: _allChannels,
             showFavoritesOnly: event.showFavoritesOnly,
@@ -46,6 +49,7 @@ class ChannelBloc extends Bloc<ChannelEvent, ChannelState> {
       );
     } else {
       _allChannels = _applyFavoritesToChannels(_allChannels);
+      _updateChannelsMap();
       emit(ChannelsLoaded(
         channels: _allChannels,
         showFavoritesOnly: event.showFavoritesOnly,
@@ -53,12 +57,18 @@ class ChannelBloc extends Bloc<ChannelEvent, ChannelState> {
     }
   }
 
+  void _updateChannelsMap() {
+    _channelsMap = {
+      for (final channel in _allChannels) channel.id: channel,
+    };
+  }
+
   Future<void> _loadFavorites() async {
     try {
       final favoritesJson = await _storage.getString(_favoritesKey);
       if (favoritesJson != null) {
-        final List<dynamic> favoritesList = json.decode(favoritesJson);
-        _favoriteChannelIds = favoritesList.map((id) => id.toString()).toSet();
+        final favoritesList = await compute(_decodeFavoritesJsonCompute, favoritesJson);
+        _favoriteChannelIds = favoritesList.toSet();
         developer.log('Загружено избранных каналов: ${_favoriteChannelIds.length}',
             name: 'ChannelBloc');
       }
@@ -71,12 +81,29 @@ class ChannelBloc extends Bloc<ChannelEvent, ChannelState> {
   Future<void> _saveFavorites() async {
     try {
       final favoritesList = _favoriteChannelIds.toList();
-      final favoritesJson = json.encode(favoritesList);
+      final favoritesJson = await compute(_encodeFavoritesJsonCompute, favoritesList);
       await _storage.setString(_favoritesKey, favoritesJson);
       developer.log('Сохранено избранных каналов: ${_favoriteChannelIds.length}',
           name: 'ChannelBloc');
     } catch (e) {
       developer.log('Ошибка сохранения избранных каналов: $e', name: 'ChannelBloc');
+    }
+  }
+
+  static String _encodeFavoritesJsonCompute(List<String> favoritesList) {
+    try {
+      return json.encode(favoritesList);
+    } catch (e) {
+      throw Exception('Ошибка кодирования JSON избранных: $e');
+    }
+  }
+
+  static List<String> _decodeFavoritesJsonCompute(String jsonString) {
+    try {
+      final List<dynamic> favoritesList = json.decode(jsonString);
+      return favoritesList.map((id) => id.toString()).toList();
+    } catch (e) {
+      throw Exception('Ошибка декодирования JSON избранных: $e');
     }
   }
 
@@ -156,13 +183,15 @@ class ChannelBloc extends Bloc<ChannelEvent, ChannelState> {
         return channel;
       }).toList();
 
-      final index = _allChannels.indexWhere(
-        (channel) => channel.id == event.channel.id,
-      );
-      if (index >= 0) {
-        _allChannels[index] = updatedChannels.firstWhere(
-          (channel) => channel.id == event.channel.id,
+      final updatedChannel = _channelsMap[event.channel.id];
+      if (updatedChannel != null) {
+        final newChannel = ChannelModel.fromEntity(updatedChannel).copyWithModel(
+          isFavorite: isFavorite,
         );
+        _allChannels = _allChannels.map((channel) {
+          return channel.id == event.channel.id ? newChannel : channel;
+        }).toList();
+        _channelsMap[event.channel.id] = newChannel;
       }
 
       emit(
@@ -204,14 +233,11 @@ class ChannelBloc extends Bloc<ChannelEvent, ChannelState> {
 
   Future<Channel?> getLastChannel() async {
     final lastChannelId = await getLastChannelId();
-    if (lastChannelId == null || _allChannels.isEmpty) {
+    if (lastChannelId == null || _channelsMap.isEmpty) {
       return null;
     }
     try {
-      return _allChannels.firstWhere(
-        (channel) => channel.id == lastChannelId,
-        orElse: () => throw StateError('Channel not found'),
-      );
+      return _channelsMap[lastChannelId];
     } catch (e) {
       developer.log('Последний канал не найден: $e', name: 'ChannelBloc');
       return null;

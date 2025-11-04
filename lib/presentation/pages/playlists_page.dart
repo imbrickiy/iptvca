@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:iptvca/core/di/injection_container.dart';
-import 'package:iptvca/core/utils/debounce.dart';
 import 'package:iptvca/presentation/bloc/playlist/playlist_bloc.dart';
 import 'package:iptvca/presentation/bloc/playlist/playlist_event.dart';
 import 'package:iptvca/presentation/bloc/playlist/playlist_state.dart';
@@ -34,19 +33,6 @@ class PlaylistsPageView extends StatefulWidget {
 }
 
 class _PlaylistsPageViewState extends State<PlaylistsPageView> {
-  late final Debounce _debounce;
-
-  @override
-  void initState() {
-    super.initState();
-    _debounce = Debounce(const Duration(milliseconds: 300));
-  }
-
-  @override
-  void dispose() {
-    _debounce.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,7 +42,7 @@ class _PlaylistsPageViewState extends State<PlaylistsPageView> {
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: () => _debounce(() => _showAddPlaylistDialog(context)),
+            onPressed: () => _showAddPlaylistDialog(context),
           ),
         ],
       ),
@@ -74,11 +60,11 @@ class _PlaylistsPageViewState extends State<PlaylistsPageView> {
                   Text(state.message),
                   const SizedBox(height: 16),
                   ElevatedButton(
-                    onPressed: () => _debounce(() {
+                    onPressed: () {
                       context.read<PlaylistBloc>().add(
                             const LoadPlaylistsEvent(),
                           );
-                    }),
+                    },
                     child: const Text('Повторить'),
                   ),
                 ],
@@ -106,7 +92,7 @@ class _PlaylistsPageViewState extends State<PlaylistsPageView> {
                     const Text('Нет плейлистов'),
                     const SizedBox(height: 16),
                     ElevatedButton(
-                      onPressed: () => _debounce(() => _showAddPlaylistDialog(context)),
+                      onPressed: () => _showAddPlaylistDialog(context),
                       child: const Text('Добавить плейлист'),
                     ),
                   ],
@@ -119,19 +105,20 @@ class _PlaylistsPageViewState extends State<PlaylistsPageView> {
               itemBuilder: (context, index) {
                 final playlist = state.playlists[index];
                 return ListTile(
+                  key: ValueKey(playlist.id),
                   title: Text(playlist.name),
                   subtitle: Text('${playlist.channels.length} каналов'),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete),
-                    onPressed: () => _debounce(() {
+                    onPressed: () {
                       context.read<PlaylistBloc>().add(
                             DeletePlaylistEvent(playlist.id),
                           );
-                    }),
+                    },
                   ),
-                  onTap: () => _debounce(() {
+                  onTap: () {
                     context.push('/channels', extra: playlist.channels);
-                  }),
+                  },
                 );
               },
             );
@@ -162,7 +149,7 @@ class _PlaylistsPageViewState extends State<PlaylistsPageView> {
             ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
-              onPressed: () => _debounce(() async {
+              onPressed: () async {
                 final result = await FilePicker.platform.pickFiles(
                   type: FileType.custom,
                   allowedExtensions: ['m3u', 'm3u8'],
@@ -175,7 +162,7 @@ class _PlaylistsPageViewState extends State<PlaylistsPageView> {
                         ),
                       );
                 }
-              }),
+              },
               icon: const Icon(Icons.folder),
               label: const Text('Выбрать файл'),
             ),
@@ -183,18 +170,18 @@ class _PlaylistsPageViewState extends State<PlaylistsPageView> {
         ),
         actions: [
           TextButton(
-            onPressed: () => _debounce(() => Navigator.pop(dialogContext)),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Отмена'),
           ),
           ElevatedButton(
-            onPressed: () => _debounce(() {
+            onPressed: () {
               if (urlController.text.isNotEmpty) {
                 Navigator.pop(dialogContext);
                 context.read<PlaylistBloc>().add(
                       LoadPlaylistFromUrlEvent(urlController.text),
                     );
               }
-            }),
+            },
             child: const Text('Загрузить'),
           ),
         ],

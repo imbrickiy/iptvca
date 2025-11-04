@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:iptvca/core/di/injection_container.dart';
-import 'package:iptvca/core/utils/debounce.dart';
 import 'package:iptvca/data/datasources/remote/epg_datasource.dart';
 import 'package:iptvca/domain/entities/channel.dart';
 
@@ -17,29 +16,31 @@ class EpgProgramsDialog extends StatefulWidget {
 
 class _EpgProgramsDialogState extends State<EpgProgramsDialog> {
   late final EpgDataSource _epgDataSource;
-  late final Debounce _debounce;
   late final ScrollController _scrollController;
   final Map<int, GlobalKey> _programKeys = {};
   Map<String, dynamic>? _epgData;
-  bool _isLoading = true;
+  bool _isLoading = false;
   String? _errorMessage;
   double _progress = 0.0;
+  bool _hasLoaded = false;
 
   @override
   void initState() {
     super.initState();
-    _debounce = Debounce(const Duration(milliseconds: 300));
     _scrollController = ScrollController();
     _epgDataSource = EpgDataSource(
       InjectionContainer.instance.storage,
       InjectionContainer.instance.cacheService,
     );
-    _loadEpg();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    if (!_hasLoaded && !_isLoading && _epgData == null) {
+      _hasLoaded = true;
+      _loadEpg();
+    }
     if (_epgData != null && !_isLoading) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Future.delayed(const Duration(milliseconds: 300), () {
@@ -53,7 +54,6 @@ class _EpgProgramsDialogState extends State<EpgProgramsDialog> {
 
   @override
   void dispose() {
-    _debounce.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -251,14 +251,14 @@ class _EpgProgramsDialogState extends State<EpgProgramsDialog> {
             actions: [
               IconButton(
                 icon: const Icon(Icons.refresh),
-                onPressed: () => _debounce(() async {
+                onPressed: () async {
                   await _loadEpg(forceRefresh: true);
-                }),
+                },
                 tooltip: 'Обновить',
               ),
               IconButton(
                 icon: const Icon(Icons.close),
-                onPressed: () => _debounce(() => Navigator.of(context).pop()),
+                onPressed: () => Navigator.of(context).pop(),
                 tooltip: 'Закрыть',
               ),
             ],
@@ -311,7 +311,7 @@ class _EpgProgramsDialogState extends State<EpgProgramsDialog> {
                       ),
                       const SizedBox(height: 16),
                       ElevatedButton.icon(
-                        onPressed: () => _debounce(_loadEpg),
+                        onPressed: _loadEpg,
                         icon: const Icon(Icons.refresh),
                         label: const Text('Повторить'),
                       ),

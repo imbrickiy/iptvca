@@ -1,4 +1,5 @@
 
+import 'package:flutter/foundation.dart';
 import 'package:iptvca/core/errors/failures.dart';
 import 'package:iptvca/core/storage/storage_interface.dart';
 import 'package:iptvca/data/models/playlist_model.dart';
@@ -25,7 +26,7 @@ class PlaylistLocalDataSourceImpl implements PlaylistLocalDataSource {
         return [];
       }
 
-      final List<dynamic> jsonList = json.decode(jsonString);
+      final List<dynamic> jsonList = await compute(_decodePlaylistsJsonCompute, jsonString);
       return jsonList
           .map((json) => PlaylistModel.fromJson(json as Map<String, dynamic>))
           .toList();
@@ -47,7 +48,8 @@ class PlaylistLocalDataSourceImpl implements PlaylistLocalDataSource {
       }
 
       final jsonList = playlists.map((p) => p.toJson()).toList();
-      await _storage.setString(_playlistsKey, json.encode(jsonList));
+      final jsonString = await compute(_encodePlaylistsJsonCompute, jsonList);
+      await _storage.setString(_playlistsKey, jsonString);
     } catch (e) {
       throw CacheFailure(message: 'Ошибка сохранения плейлиста: $e');
     }
@@ -60,7 +62,8 @@ class PlaylistLocalDataSourceImpl implements PlaylistLocalDataSource {
       playlists.removeWhere((p) => p.id == playlistId);
 
       final jsonList = playlists.map((p) => p.toJson()).toList();
-      await _storage.setString(_playlistsKey, json.encode(jsonList));
+      final jsonString = await compute(_encodePlaylistsJsonCompute, jsonList);
+      await _storage.setString(_playlistsKey, jsonString);
     } catch (e) {
       throw CacheFailure(message: 'Ошибка удаления плейлиста: $e');
     }
@@ -79,6 +82,22 @@ class PlaylistLocalDataSourceImpl implements PlaylistLocalDataSource {
         return null;
       }
       throw CacheFailure(message: 'Ошибка получения плейлиста: $e');
+    }
+  }
+
+  static List<dynamic> _decodePlaylistsJsonCompute(String jsonString) {
+    try {
+      return json.decode(jsonString) as List<dynamic>;
+    } catch (e) {
+      throw Exception('Ошибка декодирования JSON плейлистов: $e');
+    }
+  }
+
+  static String _encodePlaylistsJsonCompute(List<Map<String, dynamic>> jsonList) {
+    try {
+      return json.encode(jsonList);
+    } catch (e) {
+      throw Exception('Ошибка кодирования JSON плейлистов: $e');
     }
   }
 }

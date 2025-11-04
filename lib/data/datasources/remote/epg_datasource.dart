@@ -62,7 +62,7 @@ class EpgDataSource {
         name: 'EpgDataSource',
       );
       onProgress?.call(0.6);
-      final xmlString = utf8.decode(decompressedBytes);
+      final xmlString = await compute(_decodeUtf8Compute, decompressedBytes);
       onProgress?.call(0.7);
       final epgData = await compute(_parseXmlCompute, xmlString);
       developer.log(
@@ -102,7 +102,7 @@ class EpgDataSource {
       );
       if (cachedJson != null) {
         try {
-          final cachedData = json.decode(cachedJson) as Map<String, dynamic>;
+          final cachedData = await compute(_decodeJsonEpgCacheCompute, cachedJson);
           return cachedData;
         } catch (e) {
           developer.log('Ошибка декодирования кэша EPG: $e', name: 'EpgDataSource');
@@ -121,7 +121,7 @@ class EpgDataSource {
       }
       final cachedJson = await storage.getString(_cacheKey);
       if (cachedJson == null) return null;
-      final cachedData = json.decode(cachedJson) as Map<String, dynamic>;
+      final cachedData = await compute(_decodeJsonEpgCacheCompute, cachedJson);
       return cachedData;
     } catch (e) {
       developer.log('Ошибка чтения кэша EPG: $e', name: 'EpgDataSource');
@@ -154,6 +154,22 @@ class EpgDataSource {
       return gzipDecoder.decode(gzipBytes);
     } catch (e) {
       throw Exception('Ошибка распаковки gzip: $e');
+    }
+  }
+
+  static String _decodeUtf8Compute(List<int> bytes) {
+    try {
+      return utf8.decode(bytes);
+    } catch (e) {
+      throw Exception('Ошибка декодирования UTF-8: $e');
+    }
+  }
+
+  static Map<String, dynamic> _decodeJsonEpgCacheCompute(String jsonString) {
+    try {
+      return json.decode(jsonString) as Map<String, dynamic>;
+    } catch (e) {
+      throw Exception('Ошибка декодирования JSON кэша EPG: $e');
     }
   }
 

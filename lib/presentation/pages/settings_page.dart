@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:iptvca/core/utils/debounce.dart';
 import 'package:iptvca/domain/entities/settings.dart' as entities;
 import 'package:iptvca/presentation/bloc/settings/settings_bloc.dart';
 import 'package:iptvca/presentation/bloc/settings/settings_event.dart';
@@ -54,19 +53,6 @@ class _SettingsPageContent extends StatefulWidget {
 }
 
 class _SettingsPageContentState extends State<_SettingsPageContent> {
-  late final Debounce _debounce;
-
-  @override
-  void initState() {
-    super.initState();
-    _debounce = Debounce(const Duration(milliseconds: 300));
-  }
-
-  @override
-  void dispose() {
-    _debounce.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -76,7 +62,7 @@ class _SettingsPageContentState extends State<_SettingsPageContent> {
         leading: widget.isModal
             ? IconButton(
                 icon: const Icon(Icons.close),
-                onPressed: () => _debounce(() => Navigator.of(context).pop()),
+                onPressed: () => Navigator.of(context).pop(),
               )
             : null,
       ),
@@ -99,11 +85,11 @@ class _SettingsPageContentState extends State<_SettingsPageContent> {
                   ),
                   const SizedBox(height: 16),
                   ElevatedButton(
-                    onPressed: () => _debounce(() {
+                    onPressed: () {
                       context.read<SettingsBloc>().add(
                         const LoadSettingsEvent(),
                       );
-                    }),
+                    },
                     child: const Text('Повторить'),
                   ),
                 ],

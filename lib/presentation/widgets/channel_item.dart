@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:iptvca/core/utils/debounce.dart';
 import 'package:iptvca/domain/entities/channel.dart';
 import 'package:iptvca/presentation/bloc/channel/channel_bloc.dart';
 import 'package:iptvca/presentation/bloc/channel/channel_event.dart';
@@ -18,26 +17,14 @@ class ChannelItem extends StatefulWidget {
 }
 
 class _ChannelItemState extends State<ChannelItem> {
-  late final Debounce _debounce;
   bool? _localIsFavorite;
 
   @override
-  void initState() {
-    super.initState();
-    _debounce = Debounce(const Duration(milliseconds: 300));
-  }
-
-  @override
-  void dispose() {
-    _debounce.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: BlocBuilder<ChannelBloc, ChannelState>(
+    return RepaintBoundary(
+      child: Card(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: BlocBuilder<ChannelBloc, ChannelState>(
         buildWhen: (previous, current) {
           if (previous is ChannelsLoaded && current is ChannelsLoaded) {
             final prevChannelIndex = previous.channels.indexWhere((c) => c.id == widget.channel.id);
@@ -76,6 +63,8 @@ class _ChannelItemState extends State<ChannelItem> {
                     width: 64,
                     height: 64,
                     fit: BoxFit.cover,
+                    memCacheWidth: 128,
+                    memCacheHeight: 128,
                     placeholder: (context, url) => const SizedBox(
                       width: 64,
                       height: 64,
@@ -93,7 +82,7 @@ class _ChannelItemState extends State<ChannelItem> {
                 isFavorite ? Icons.favorite : Icons.favorite_border,
                 color: isFavorite ? Colors.red : null,
               ),
-              onPressed: () => _debounce(() {
+              onPressed: () {
                 final newFavoriteStatus = !isFavorite;
                 setState(() {
                   _localIsFavorite = newFavoriteStatus;
@@ -101,16 +90,17 @@ class _ChannelItemState extends State<ChannelItem> {
                 context.read<ChannelBloc>().add(
                       ToggleFavoriteEvent(currentChannel),
                     );
-              }),
+              },
             ),
-            onTap: () => _debounce(() {
+            onTap: () {
               context.read<ChannelBloc>().add(
                     SelectChannelEvent(currentChannel),
                   );
               context.push('/player', extra: currentChannel);
-            }),
+            },
           );
         },
+      ),
       ),
     );
   }

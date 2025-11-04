@@ -7,13 +7,13 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:iptvca/core/di/injection_container.dart';
-import 'package:iptvca/core/utils/debounce.dart';
 import 'package:iptvca/presentation/bloc/channel/channel_bloc.dart';
 import 'package:iptvca/presentation/bloc/channel/channel_event.dart';
 import 'package:iptvca/presentation/bloc/channel/channel_state.dart';
 import 'package:iptvca/domain/entities/channel.dart';
 import 'package:iptvca/presentation/widgets/epg_programs_dialog.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:iptvca/core/utils/debounce.dart';
 
 class _ChannelSelectorDrawer extends StatefulWidget {
   const _ChannelSelectorDrawer({required this.onChannelSelected});
@@ -24,17 +24,17 @@ class _ChannelSelectorDrawer extends StatefulWidget {
 }
 
 class _ChannelSelectorDrawerState extends State<_ChannelSelectorDrawer> {
-  late final Debounce _debounce;
+  late final Debounce _searchDebounce;
 
   @override
   void initState() {
     super.initState();
-    _debounce = Debounce(const Duration(milliseconds: 300));
+    _searchDebounce = Debounce(const Duration(milliseconds: 300));
   }
 
   @override
   void dispose() {
-    _debounce.dispose();
+    _searchDebounce.dispose();
     super.dispose();
   }
 
@@ -127,7 +127,9 @@ class _ChannelSelectorDrawerState extends State<_ChannelSelectorDrawer> {
                     filled: true,
                   ),
                   onChanged: (value) {
-                    context.read<ChannelBloc>().add(SearchChannelsEvent(value));
+                    _searchDebounce(() {
+                      context.read<ChannelBloc>().add(SearchChannelsEvent(value));
+                    });
                   },
                 ),
               ],
@@ -162,10 +164,10 @@ class _ChannelSelectorDrawerState extends State<_ChannelSelectorDrawer> {
           ListTile(
             leading: const Icon(Icons.home),
             title: const Text('Главная'),
-            onTap: () => _debounce(() {
+            onTap: () {
               Navigator.of(context).pop();
               context.go('/');
-            }),
+            },
           ),
           const Divider(),
           Expanded(
@@ -245,6 +247,10 @@ class _ChannelsGroupedList extends StatefulWidget {
 }
 
 class _ChannelsGroupedListState extends State<_ChannelsGroupedList> {
+  Map<String, List<Channel>>? _cachedGroupedChannels;
+  List<String>? _cachedCategories;
+  List<Channel>? _lastChannels;
+
   Map<String, List<Channel>> _groupChannelsByCategory(List<Channel> channels) {
     final Map<String, List<Channel>> grouped = {};
     for (final channel in channels) {
@@ -256,14 +262,22 @@ class _ChannelsGroupedListState extends State<_ChannelsGroupedList> {
 
   @override
   Widget build(BuildContext context) {
-    final groupedChannels = _groupChannelsByCategory(widget.channels);
-    final categories = groupedChannels.keys.toList()..sort();
+    if (_cachedGroupedChannels == null || 
+        _lastChannels != widget.channels ||
+        _lastChannels?.length != widget.channels.length) {
+      _cachedGroupedChannels = _groupChannelsByCategory(widget.channels);
+      _cachedCategories = _cachedGroupedChannels!.keys.toList()..sort();
+      _lastChannels = widget.channels;
+    }
+    final groupedChannels = _cachedGroupedChannels!;
+    final categories = _cachedCategories!;
     return ListView.builder(
       itemCount: categories.length,
       itemBuilder: (context, index) {
         final category = categories[index];
         final categoryChannels = groupedChannels[category]!;
         return ExpansionTile(
+          key: ValueKey(category),
           initiallyExpanded: false,
           leading: const Icon(Icons.folder_outlined),
           title: Text(category),
@@ -293,20 +307,7 @@ class _ChannelDrawerItem extends StatefulWidget {
 }
 
 class _ChannelDrawerItemState extends State<_ChannelDrawerItem> {
-  late final Debounce _debounce;
   bool? _localIsFavorite;
-
-  @override
-  void initState() {
-    super.initState();
-    _debounce = Debounce(const Duration(milliseconds: 300));
-  }
-
-  @override
-  void dispose() {
-    _debounce.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -355,6 +356,8 @@ class _ChannelDrawerItemState extends State<_ChannelDrawerItem> {
                   width: 48,
                   height: 48,
                   fit: BoxFit.cover,
+                  memCacheWidth: 96,
+                  memCacheHeight: 96,
                   placeholder: (context, url) => const SizedBox(
                     width: 48,
                     height: 48,
@@ -374,7 +377,7 @@ class _ChannelDrawerItemState extends State<_ChannelDrawerItem> {
                 isFavorite ? Icons.favorite : Icons.favorite_border,
                 color: isFavorite ? Colors.red : null,
               ),
-              onPressed: () => _debounce(() {
+              onPressed: () {
                 final newFavoriteStatus = !isFavorite;
                 setState(() {
                   _localIsFavorite = newFavoriteStatus;
@@ -382,13 +385,13 @@ class _ChannelDrawerItemState extends State<_ChannelDrawerItem> {
                 context.read<ChannelBloc>().add(
                       ToggleFavoriteEvent(currentChannel),
                     );
-              }),
+              },
             ),
-          onTap: () => _debounce(() {
+          onTap: () {
             context.read<ChannelBloc>().add(SelectChannelEvent(currentChannel));
             Navigator.of(context).pop();
             widget.onChannelSelected(currentChannel);
-          }),
+          },
         );
       },
     );
@@ -429,19 +432,6 @@ class _PlayerAppBar extends StatefulWidget implements PreferredSizeWidget {
 }
 
 class _PlayerAppBarState extends State<_PlayerAppBar> {
-  late final Debounce _debounce;
-
-  @override
-  void initState() {
-    super.initState();
-    _debounce = Debounce(const Duration(milliseconds: 300));
-  }
-
-  @override
-  void dispose() {
-    _debounce.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -486,10 +476,10 @@ class _PlayerAppBarState extends State<_PlayerAppBar> {
               ),
               const SizedBox(width: 8),
               GestureDetector(
-                onTap: () => _debounce(() {
+                onTap: () {
                   widget.onLocalFavoriteChanged(!favorite);
                   context.read<ChannelBloc>().add(ToggleFavoriteEvent(channel));
-                }),
+                },
                 child: Icon(
                   favorite ? Icons.favorite : Icons.favorite_border,
                   color: favorite ? Colors.red : null,
@@ -528,17 +518,17 @@ class _PlayerPageState extends State<PlayerPage> {
   Channel? _currentChannel;
   String? _errorMessage;
   bool _isInitializing = false;
+  bool _errorListenerSet = false;
   bool? _localIsFavorite;
   late final bool _supportsWindowControls;
-  late final Debounce _debounce;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   bool _isAlwaysOnTop = false;
   bool _hasInitializedFromExtra = false;
+  bool _hasTriedToSaveChannel = false;
 
   @override
   void initState() {
     super.initState();
-    _debounce = Debounce(const Duration(milliseconds: 300));
     _supportsWindowControls =
         !kIsWeb &&
         (defaultTargetPlatform == TargetPlatform.windows ||
@@ -572,20 +562,19 @@ class _PlayerPageState extends State<PlayerPage> {
         _errorMessage = null;
         _localIsFavorite = null;
         _hasInitializedFromExtra = true;
-        if (channel != null) {
-          context.read<ChannelBloc>().add(SelectChannelEvent(channel));
-        }
         _initializePlayer(_videoUrl!);
-      }
-    } else {
-      try {
-        final bloc = context.read<ChannelBloc>();
-        _restoreLastChannel(bloc);
-      } catch (e) {
-        developer.log(
-          'ChannelBloc еще не доступен, восстановление будет выполнено позже',
-          name: 'PlayerPage',
-        );
+        if (channel != null) {
+          Future.microtask(() {
+            try {
+              context.read<ChannelBloc>().add(SelectChannelEvent(channel!));
+            } catch (e) {
+              developer.log(
+                'ChannelBloc еще не доступен для сохранения канала: $e',
+                name: 'PlayerPage',
+              );
+            }
+          });
+        }
       }
     }
   }
@@ -629,6 +618,131 @@ class _PlayerPageState extends State<PlayerPage> {
         stackTrace: stackTrace,
       );
     }
+  }
+
+  Widget _buildPlayerScaffold() {
+    return Scaffold(
+      key: _scaffoldKey,
+      appBar: _currentChannel != null
+          ? _PlayerAppBar(
+              currentChannel: _currentChannel!,
+              localIsFavorite: _localIsFavorite,
+              onLocalFavoriteChanged: (newStatus) {
+                setState(() {
+                  _localIsFavorite = newStatus;
+                });
+              },
+              showAlwaysOnTopControl: _supportsWindowControls,
+              isAlwaysOnTop: _isAlwaysOnTop,
+              onToggleAlwaysOnTop: _toggleAlwaysOnTop,
+              onShowEpg: () {
+                _scaffoldKey.currentState?.openEndDrawer();
+              },
+            )
+          : AppBar(title: const Text('Плеер')),
+      drawer: _ChannelSelectorDrawer(
+        onChannelSelected: (channel) {
+          _switchChannel(channel);
+        },
+      ),
+      endDrawer: _currentChannel != null
+          ? EpgProgramsDialog(
+              channel: _currentChannel!,
+            )
+          : null,
+      body: Stack(
+        children: [
+          Center(child: Video(controller: _videoController!)),
+          if (_isInitializing && _currentChannel != null)
+            Container(
+              color: Colors.black87,
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (_currentChannel!.logoUrl != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 24.0),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: CachedNetworkImage(
+                            imageUrl: _currentChannel!.logoUrl!,
+                            width: 120,
+                            height: 120,
+                            fit: BoxFit.cover,
+                            memCacheWidth: 240,
+                            memCacheHeight: 240,
+                            placeholder: (context, url) => Container(
+                              width: 120,
+                              height: 120,
+                              color: Colors.grey[800],
+                              child: const Center(
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            ),
+                            errorWidget: (context, url, error) => Container(
+                              width: 120,
+                              height: 120,
+                              color: Colors.grey[800],
+                              child: const Icon(
+                                Icons.tv,
+                                size: 48,
+                                color: Colors.white70,
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 24.0),
+                        child: Container(
+                          width: 120,
+                          height: 120,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[800],
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: const Icon(
+                            Icons.tv,
+                            size: 48,
+                            color: Colors.white70,
+                          ),
+                        ),
+                      ),
+                    Text(
+                      _currentChannel!.name,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    const CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Загрузка...',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Colors.white70,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else if (_isInitializing)
+            Container(
+              color: Colors.black54,
+              child: const Center(child: CircularProgressIndicator()),
+            ),
+        ],
+      ),
+    );
   }
 
   void _disposeController() {
@@ -684,24 +798,48 @@ class _PlayerPageState extends State<PlayerPage> {
     });
     try {
       developer.log('Инициализация плеера для URL: $url', name: 'PlayerPage');
-      final isHls =
-          url.toLowerCase().endsWith('.m3u8') ||
-          url.toLowerCase().contains('/hls/') ||
-          url.toLowerCase().contains('m3u8');
-      if (isHls) {
-        developer.log('Обнаружен HLS поток (.m3u8)', name: 'PlayerPage');
-      }
-      _player = Player();
-      _videoController = VideoController(_player!);
-      _player!.stream.error.listen((error) {
-        developer.log('Ошибка воспроизведения: $error', name: 'PlayerPage');
-        if (mounted) {
-          setState(() {
-            _errorMessage = error.toString();
+      if (_player == null) {
+        _player = Player(
+          configuration: PlayerConfiguration(
+            bufferSize: 1024 * 1024 * 10,
+            protocolWhitelist: ['http', 'https', 'rtmp', 'rtsp', 'tcp', 'udp'],
+            vo: 'gpu',
+          ),
+        );
+        _videoController = VideoController(
+          _player!,
+          configuration: VideoControllerConfiguration(
+            enableHardwareAcceleration: true,
+          ),
+        );
+        if (!_errorListenerSet) {
+          _player!.stream.error.listen((error) {
+            developer.log('Ошибка воспроизведения: $error', name: 'PlayerPage');
+            if (mounted) {
+              setState(() {
+                _errorMessage = error.toString();
+              });
+            }
           });
+          _errorListenerSet = true;
         }
-      });
-      await _player!.open(Media(url));
+      }
+      final media = Media(url);
+      await _player!.open(media, play: false);
+      try {
+        await _player!.stream.buffering
+            .firstWhere((buffering) => !buffering)
+            .timeout(
+              const Duration(seconds: 10),
+              onTimeout: () {
+                developer.log('Таймаут ожидания буфера, начинаем воспроизведение', name: 'PlayerPage');
+                return false;
+              },
+            );
+      } catch (e) {
+        developer.log('Ошибка ожидания буфера: $e, начинаем воспроизведение', name: 'PlayerPage');
+      }
+      await _player!.play();
       developer.log('MediaKit Player создан и запущен', name: 'PlayerPage');
       if (mounted) {
         setState(() {
@@ -728,9 +866,12 @@ class _PlayerPageState extends State<PlayerPage> {
   Future<void> _switchChannel(Channel channel) async {
     final player = _player;
     if (player == null || _videoController == null) {
-      _currentChannel = channel;
-      _videoUrl = channel.url;
-      _localIsFavorite = null;
+      setState(() {
+        _currentChannel = channel;
+        _videoUrl = channel.url;
+        _localIsFavorite = null;
+        _errorMessage = null;
+      });
       context.read<ChannelBloc>().add(SelectChannelEvent(channel));
       await _initializePlayer(channel.url);
       return;
@@ -757,8 +898,21 @@ class _PlayerPageState extends State<PlayerPage> {
       );
       final currentPlayer = _player;
       if (currentPlayer != null) {
-        await currentPlayer.stop();
-        await currentPlayer.open(Media(channel.url));
+        final media = Media(channel.url);
+        await currentPlayer.open(media, play: false);
+        try {
+          await currentPlayer.stream.buffering
+              .firstWhere((buffering) => !buffering)
+              .timeout(
+                const Duration(seconds: 5),
+                onTimeout: () {
+                  developer.log('Таймаут ожидания буфера при переключении, начинаем воспроизведение', name: 'PlayerPage');
+                  return false;
+                },
+              );
+        } catch (e) {
+          developer.log('Ошибка ожидания буфера при переключении: $e, начинаем воспроизведение', name: 'PlayerPage');
+        }
         await currentPlayer.play();
         developer.log(
           'Канал переключен и воспроизведение запущено',
@@ -793,7 +947,6 @@ class _PlayerPageState extends State<PlayerPage> {
 
   @override
   void dispose() {
-    _debounce.dispose();
     _disposeController();
     super.dispose();
   }
@@ -830,18 +983,18 @@ class _PlayerPageState extends State<PlayerPage> {
                 ),
                 const SizedBox(height: 32),
                 ElevatedButton.icon(
-                  onPressed: () => _debounce(() {
+                  onPressed: () {
                     setState(() {
                       _errorMessage = null;
                     });
                     _initializePlayer(_videoUrl!);
-                  }),
+                  },
                   icon: const Icon(Icons.refresh),
                   label: const Text('Повторить'),
                 ),
                 const SizedBox(height: 16),
                 TextButton(
-                  onPressed: () => _debounce(() => context.pop()),
+                  onPressed: () => context.pop(),
                   child: const Text('Назад'),
                 ),
               ],
@@ -860,52 +1013,32 @@ class _PlayerPageState extends State<PlayerPage> {
       create: (context) {
         final bloc = InjectionContainer.instance.createChannelBloc();
         bloc.add(const LoadChannelsEvent());
-        bloc.stream.firstWhere((state) => state is ChannelsLoaded).then((_) {
-          if (mounted && !_hasInitializedFromExtra && _currentChannel == null) {
-            _restoreLastChannel(bloc);
-          }
-        });
         return bloc;
       },
-      child: Scaffold(
-        key: _scaffoldKey,
-        appBar: _currentChannel != null
-            ? _PlayerAppBar(
-                currentChannel: _currentChannel!,
-                localIsFavorite: _localIsFavorite,
-                onLocalFavoriteChanged: (newStatus) {
-                  setState(() {
-                    _localIsFavorite = newStatus;
-                  });
-                },
-                showAlwaysOnTopControl: _supportsWindowControls,
-                isAlwaysOnTop: _isAlwaysOnTop,
-                onToggleAlwaysOnTop: _toggleAlwaysOnTop,
-                onShowEpg: () {
-                  _scaffoldKey.currentState?.openEndDrawer();
-                },
-              )
-            : AppBar(title: const Text('Плеер')),
-        drawer: _ChannelSelectorDrawer(
-          onChannelSelected: (channel) {
-            _switchChannel(channel);
-          },
-        ),
-        endDrawer: _currentChannel != null
-            ? EpgProgramsDialog(
-                channel: _currentChannel!,
-              )
-            : null,
-        body: Stack(
-          children: [
-            Center(child: Video(controller: _videoController!)),
-            if (_isInitializing)
-              Container(
-                color: Colors.black54,
-                child: const Center(child: CircularProgressIndicator()),
-              ),
-          ],
-        ),
+      child: BlocBuilder<ChannelBloc, ChannelState>(
+        builder: (context, state) {
+          if (state is ChannelsLoaded) {
+            if (!_hasInitializedFromExtra && _currentChannel == null && !_hasTriedToSaveChannel) {
+              Future.microtask(() {
+                final bloc = context.read<ChannelBloc>();
+                _restoreLastChannel(bloc);
+              });
+            } else if (_hasInitializedFromExtra && _currentChannel != null && !_hasTriedToSaveChannel) {
+              _hasTriedToSaveChannel = true;
+              Future.microtask(() {
+                try {
+                  context.read<ChannelBloc>().add(SelectChannelEvent(_currentChannel!));
+                } catch (e) {
+                  developer.log(
+                    'Ошибка сохранения канала: $e',
+                    name: 'PlayerPage',
+                  );
+                }
+              });
+            }
+          }
+          return _buildPlayerScaffold();
+        },
       ),
     );
   }
