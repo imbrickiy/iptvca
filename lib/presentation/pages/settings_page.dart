@@ -100,34 +100,6 @@ class _SettingsPageContentState extends State<_SettingsPageContent> {
             return ListView(
               padding: const EdgeInsets.symmetric(vertical: 8),
               children: [
-                _buildSection(context, 'Воспроизведение', [
-                  _buildSwitchTile(
-                    context,
-                    'Автовоспроизведение',
-                    'Автоматически запускать воспроизведение при выборе канала',
-                    Icons.play_arrow,
-                    state.settings.autoplay,
-                    (value) {
-                      context.read<SettingsBloc>().add(
-                        UpdateAutoplayEvent(value),
-                      );
-                    },
-                  ),
-                  _buildDropdownTile<entities.VideoQuality>(
-                    context,
-                    'Качество видео',
-                    'Качество видео для воспроизведения',
-                    Icons.high_quality,
-                    state.settings.videoQuality,
-                    entities.VideoQuality.values,
-                    (value) {
-                      context.read<SettingsBloc>().add(
-                        UpdateVideoQualityEvent(value),
-                      );
-                    },
-                    _getVideoQualityLabel,
-                  ),
-                ]),
                 _buildSection(context, 'Внешний вид', [
                   _buildDropdownTile<entities.AppThemeMode>(
                     context,
@@ -143,49 +115,6 @@ class _SettingsPageContentState extends State<_SettingsPageContent> {
                     },
                     _getThemeModeLabel,
                   ),
-                ]),
-                _buildSection(context, 'Уведомления', [
-                  _buildSwitchTile(
-                    context,
-                    'Показывать уведомления',
-                    'Разрешить показ уведомлений',
-                    Icons.notifications,
-                    state.settings.showNotifications,
-                    (value) {
-                      context.read<SettingsBloc>().add(
-                        UpdateShowNotificationsEvent(value),
-                      );
-                    },
-                  ),
-                ]),
-                _buildSection(context, 'Кэш', [
-                  _buildSwitchTile(
-                    context,
-                    'Включить кэш',
-                    'Кэширование данных для быстрой загрузки',
-                    Icons.storage,
-                    state.settings.cacheEnabled,
-                    (value) {
-                      context.read<SettingsBloc>().add(
-                        UpdateCacheEnabledEvent(value),
-                      );
-                    },
-                  ),
-                  if (state.settings.cacheEnabled)
-                    _buildSliderTile(
-                      context,
-                      'Максимальный размер кэша (МБ)',
-                      'Размер кэша в мегабайтах',
-                      Icons.data_usage,
-                      state.settings.maxCacheSize.toDouble(),
-                      100,
-                      2000,
-                      (value) {
-                        context.read<SettingsBloc>().add(
-                          UpdateMaxCacheSizeEvent(value.toInt()),
-                        );
-                      },
-                    ),
                 ]),
                 const Divider(height: 32),
                 _buildInfoSection(context),
@@ -222,22 +151,6 @@ class _SettingsPageContentState extends State<_SettingsPageContent> {
     );
   }
 
-  Widget _buildSwitchTile(
-    BuildContext context,
-    String title,
-    String subtitle,
-    IconData icon,
-    bool value,
-    ValueChanged<bool> onChanged,
-  ) {
-    return ListTile(
-      leading: Icon(icon),
-      title: Text(title),
-      subtitle: Text(subtitle),
-      trailing: Switch(value: value, onChanged: onChanged),
-    );
-  }
-
   Widget _buildDropdownTile<T>(
     BuildContext context,
     String title,
@@ -266,42 +179,6 @@ class _SettingsPageContentState extends State<_SettingsPageContent> {
     );
   }
 
-  Widget _buildSliderTile(
-    BuildContext context,
-    String title,
-    String subtitle,
-    IconData icon,
-    double value,
-    double min,
-    double max,
-    ValueChanged<double> onChanged,
-  ) {
-    return ListTile(
-      leading: Icon(icon),
-      title: Text(title),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(subtitle),
-          const SizedBox(height: 8),
-          Slider(
-            value: value,
-            min: min,
-            max: max,
-            divisions: ((max - min) / 50).round(),
-            label: '${value.toInt()} МБ',
-            onChanged: onChanged,
-          ),
-          Text(
-            '${value.toInt()} МБ',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        ],
-      ),
-      isThreeLine: true,
-    );
-  }
-
   Widget _buildInfoSection(BuildContext context) {
     return FutureBuilder<PackageInfo>(
       future: PackageInfo.fromPlatform(),
@@ -312,44 +189,24 @@ class _SettingsPageContentState extends State<_SettingsPageContent> {
         final packageInfo = snapshot.data!;
         return Column(
           children: [
-            ListTile(
-              leading: const Icon(Icons.info),
-              title: const Text('Версия приложения'),
-              subtitle: Text(
-                '${packageInfo.version} (${packageInfo.buildNumber})',
+            _buildSection(context, 'О программе', [
+              ListTile(
+                leading: const Icon(Icons.info),
+                title: const Text('Версия'),
+                subtitle: Text(
+                  '${packageInfo.version} (Build ${packageInfo.buildNumber})',
+                ),
               ),
-            ),
-            const Divider(),
-            ListTile(
-              leading: const Icon(Icons.description),
-              title: const Text('О приложении'),
-              subtitle: const Text('IPTV приложение для Windows'),
-            ),
-            const Divider(),
-            ListTile(
-              leading: const Icon(Icons.code),
-              title: const Text('Имя пакета'),
-              subtitle: Text(packageInfo.packageName),
-            ),
+              ListTile(
+                leading: const Icon(Icons.description),
+                title: const Text('О приложении'),
+                subtitle: const Text('IPTV приложение для Windows'),
+              ),
+            ]),
           ],
         );
       },
     );
-  }
-
-  String _getVideoQualityLabel(entities.VideoQuality quality) {
-    switch (quality) {
-      case entities.VideoQuality.auto:
-        return 'Автоматически';
-      case entities.VideoQuality.low:
-        return 'Низкое';
-      case entities.VideoQuality.medium:
-        return 'Среднее';
-      case entities.VideoQuality.high:
-        return 'Высокое';
-      case entities.VideoQuality.best:
-        return 'Лучшее';
-    }
   }
 
   String _getThemeModeLabel(entities.AppThemeMode mode) {
