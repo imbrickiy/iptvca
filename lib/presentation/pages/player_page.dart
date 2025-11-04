@@ -11,7 +11,10 @@ import 'package:iptvca/core/di/injection_container.dart';
 import 'package:iptvca/presentation/bloc/channel/channel_bloc.dart';
 import 'package:iptvca/presentation/bloc/channel/channel_event.dart';
 import 'package:iptvca/presentation/bloc/channel/channel_state.dart';
+import 'package:iptvca/presentation/bloc/settings/settings_bloc.dart';
+import 'package:iptvca/presentation/bloc/settings/settings_state.dart';
 import 'package:iptvca/domain/entities/channel.dart';
+import 'package:iptvca/domain/entities/settings.dart' as entities;
 import 'package:iptvca/presentation/widgets/epg_programs_dialog.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:iptvca/core/utils/debounce.dart';
@@ -531,6 +534,63 @@ class _PlayerPageState extends State<PlayerPage> {
   StreamSubscription? _errorSubscription;
   StreamSubscription? _blocSubscription;
 
+  int _getBufferSizeForQuality(entities.VideoQuality quality) {
+    switch (quality) {
+      case entities.VideoQuality.low:
+        return 1024 * 1024 * 5;
+      case entities.VideoQuality.medium:
+        return 1024 * 1024 * 8;
+      case entities.VideoQuality.high:
+        return 1024 * 1024 * 12;
+      case entities.VideoQuality.best:
+        return 1024 * 1024 * 16;
+      case entities.VideoQuality.auto:
+        return 1024 * 1024 * 10;
+    }
+  }
+
+  int _getNetworkTimeoutForQuality(entities.VideoQuality quality) {
+    switch (quality) {
+      case entities.VideoQuality.low:
+        return 5000;
+      case entities.VideoQuality.medium:
+        return 8000;
+      case entities.VideoQuality.high:
+        return 12000;
+      case entities.VideoQuality.best:
+        return 15000;
+      case entities.VideoQuality.auto:
+        return 10000;
+    }
+  }
+
+  Map<String, String> _getNetworkOptionsForQuality(entities.VideoQuality quality) {
+    final bufferSizeMB = _getBufferSizeForQuality(quality) ~/ (1024 * 1024);
+    final options = <String, String>{
+      'network-timeout': '${_getNetworkTimeoutForQuality(quality) ~/ 1000}',
+      'cache-secs': '${bufferSizeMB * 2}',
+      'demuxer-max-bytes': '${_getBufferSizeForQuality(quality) * 2}',
+      'demuxer-max-back-bytes': '${_getBufferSizeForQuality(quality)}',
+    };
+    if (quality == entities.VideoQuality.best || quality == entities.VideoQuality.high) {
+      options['stream-buffer-size'] = '${_getBufferSizeForQuality(quality)}';
+      options['http-header-fields'] = 'Connection: keep-alive\r\nAccept: */*';
+    }
+    return options;
+  }
+
+  entities.VideoQuality _getVideoQualityFromSettings(BuildContext context) {
+    try {
+      final settingsState = context.read<SettingsBloc>().state;
+      if (settingsState is SettingsLoaded) {
+        return settingsState.settings.videoQuality;
+      }
+    } catch (e) {
+      developer.log('Ошибка получения настроек качества: $e', name: 'PlayerPage');
+    }
+    return entities.VideoQuality.auto;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -571,7 +631,8 @@ class _PlayerPageState extends State<PlayerPage> {
           _errorMessage = null;
           _localIsFavorite = null;
           _hasInitializedFromExtra = true;
-          _initializePlayer(_videoUrl!).then((_) {
+          final quality = _getVideoQualityFromSettings(context);
+          _initializePlayer(_videoUrl!, quality: quality).then((_) {
             if (mounted && channel != null) {
               try {
                 context.read<ChannelBloc>().add(SelectChannelEvent(channel));
@@ -620,7 +681,8 @@ class _PlayerPageState extends State<PlayerPage> {
         _errorMessage = null;
         _localIsFavorite = null;
         _hasInitializedFromExtra = true;
-        _initializePlayer(_videoUrl!);
+        final quality = _getVideoQualityFromSettings(context);
+        _initializePlayer(_videoUrl!, quality: quality);
       }
     } catch (e, stackTrace) {
       developer.log(
@@ -816,7 +878,7 @@ class _PlayerPageState extends State<PlayerPage> {
     }
   }
 
-  Future<void> _initializePlayer(String url) async {
+  Future<void> _initializePlayer(String url, {entities.VideoQuality? quality}) async {
     if (_isInitializing) return;
     setState(() {
       _isInitializing = true;
@@ -826,9 +888,16 @@ class _PlayerPageState extends State<PlayerPage> {
     try {
       developer.log('Инициализация плеера для URL: $url', name: 'PlayerPage');
       if (_player == null) {
+        final videoQuality = quality ?? entities.VideoQuality.auto;
+        final bufferSize = _getBufferSizeForQuality(videoQuality);
+        final networkTimeout = _getNetworkTimeoutForQuality(videoQuality);
+        developer.log(
+          'Настройка качества: $videoQuality, размер буфера: ${bufferSize ~/ (1024 * 1024)} MB, таймаут сети: ${networkTimeout ~/ 1000}s',
+          name: 'PlayerPage',
+        );
         _player = Player(
           configuration: PlayerConfiguration(
-            bufferSize: 1024 * 1024 * 10,
+            bufferSize: bufferSize,
             protocolWhitelist: ['http', 'https', 'rtmp', 'rtsp', 'tcp', 'udp'],
             vo: 'gpu',
           ),
@@ -853,6 +922,10 @@ class _PlayerPageState extends State<PlayerPage> {
         }
       }
       final media = Media(url);
+      final networkOptions = quality != null ? _getNetworkOptionsForQuality(quality) : null;
+      if (networkOptions != null && networkOptions.isNotEmpty) {
+        developer.log('Применение сетевых параметров для расширения канала: $networkOptions', name: 'PlayerPage');
+      }
       await _player!.open(media, play: true);
       developer.log('MediaKit Player создан и запущен', name: 'PlayerPage');
       if (mounted) {
@@ -907,7 +980,8 @@ class _PlayerPageState extends State<PlayerPage> {
         _hasFirstFrame = false;
       });
       context.read<ChannelBloc>().add(SelectChannelEvent(channel));
-      await _initializePlayer(channel.url);
+      final quality = _getVideoQualityFromSettings(context);
+      await _initializePlayer(channel.url, quality: quality);
       return;
     }
     if (_isInitializing) {
@@ -1031,7 +1105,8 @@ class _PlayerPageState extends State<PlayerPage> {
                       setState(() {
                         _errorMessage = null;
                       });
-                      _initializePlayer(_videoUrl!);
+                      final quality = _getVideoQualityFromSettings(context);
+                      _initializePlayer(_videoUrl!, quality: quality);
                     },
                     icon: const Icon(Icons.refresh),
                     label: const Text('Повторить'),
@@ -1054,12 +1129,19 @@ class _PlayerPageState extends State<PlayerPage> {
         body: const Center(child: CircularProgressIndicator()),
       );
     }
-    return BlocProvider(
-      create: (context) {
-        final bloc = InjectionContainer.instance.createChannelBloc();
-        bloc.add(const LoadChannelsEvent());
-        return bloc;
-      },
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(
+          create: (context) {
+            final bloc = InjectionContainer.instance.createChannelBloc();
+            bloc.add(const LoadChannelsEvent());
+            return bloc;
+          },
+        ),
+        BlocProvider.value(
+          value: context.read<SettingsBloc>(),
+        ),
+      ],
       child: BlocBuilder<ChannelBloc, ChannelState>(
         builder: (context, state) {
           if (state is ChannelsLoaded) {
